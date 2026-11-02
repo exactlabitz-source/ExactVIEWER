@@ -52,6 +52,12 @@ button{cursor:pointer}
 .grid.lay-mpr{grid-template-columns:1fr 1.35fr;grid-template-rows:1fr 1fr}
 .grid.lay-plan{grid-template-columns:1fr 1fr 1fr;grid-template-rows:1fr 1fr}
 .grid.lay-plan .pane[data-slot="3"], .grid.lay-plan #pane3d{grid-column:1 / -1}
+.vslider{position:absolute;right:6px;top:12px;bottom:12px;width:18px;z-index:3;cursor:ns-resize;touch-action:none}
+.vslider::before{content:"";position:absolute;left:7px;width:4px;top:0;bottom:0;border-radius:2px;background:rgba(143,168,190,.35)}
+.vslider .vthumb{position:absolute;left:0;width:18px;height:18px;margin-top:-9px;border-radius:50%;background:var(--accent);border:2px solid var(--fg);box-shadow:0 1px 4px rgba(0,0,0,.5)}
+.vslider .vtip{position:absolute;right:24px;margin-top:-11px;white-space:nowrap;font-family:var(--f-mono);font-size:11px;background:rgba(2,8,15,.85);color:var(--fg);padding:2px 6px;border-radius:4px;pointer-events:none;opacity:0;transition:opacity .15s}
+.vslider:hover .vtip,.vslider.drag .vtip{opacity:1}
+.vslider[hidden]{display:none}
 .bottom-switch{display:inline-flex;gap:4px;margin-left:8px}
 .bottom-switch button{background:transparent;border:1px solid var(--line);border-radius:5px;color:var(--muted);font-size:11px;font-weight:600;padding:2px 8px}
 .bottom-switch button.on{background:var(--accent);border-color:var(--accent);color:#1A0610}
@@ -766,7 +772,37 @@ function invalidate(opts={}){
   if(!rafQ){ rafQ=true; requestAnimationFrame(flush); }
 }
 function redraw(p){ need.panes.add(p); if(!rafQ){rafQ=true;requestAnimationFrame(flush);} }
-function flush(){ rafQ=false; need.panes.forEach(drawPane); need.panes.clear(); if(need.side){need.side=false; renderSide();} if(need.three){need.three=false; sync3D();} }
+function flush(){ rafQ=false; need.panes.forEach(drawPane); need.panes.clear(); updateSliders(); if(need.side){need.side=false; renderSide();} if(need.three){need.three=false; sync3D();} }
+
+/* ---------------- Barras laterais de navegação ---------------- */
+function makeSlider(host, get, set){
+  const el=document.createElement('div'); el.className='vslider'; el.innerHTML='<div class="vthumb"></div><div class="vtip"></div>'; el.setAttribute('role','slider'); el.tabIndex=0;
+  host.appendChild(el); const th=el.firstChild, tip=el.lastChild;
+  const S_={el, get, set, th, tip};
+  const fromY=cy=>{ const r=el.getBoundingClientRect(); return clamp((cy-r.top)/r.height,0,1); };
+  el.addEventListener('pointerdown',e=>{ e.stopPropagation(); el.setPointerCapture(e.pointerId); el.classList.add('drag'); set(fromY(e.clientY)); });
+  el.addEventListener('pointermove',e=>{ if(el.classList.contains('drag')) set(fromY(e.clientY)); });
+  const up=()=>el.classList.remove('drag'); el.addEventListener('pointerup',up); el.addEventListener('pointercancel',up);
+  el.addEventListener('wheel',e=>{ e.preventDefault(); e.stopPropagation(); const g=get(); if(!g) return; set(clamp(g.t+Math.sign(e.deltaY)*g.step,0,1)); },{passive:false});
+  el.addEventListener('keydown',e=>{ const g=get(); if(!g) return; if(e.key==='ArrowDown'){ set(clamp(g.t+g.step,0,1)); e.preventDefault(); } if(e.key==='ArrowUp'){ set(clamp(g.t-g.step,0,1)); e.preventDefault(); } });
+  return S_;
+}
+const SL=[];
+function topSliderModel(){ if(!st.vol||st.mode!=='plan') return null; const F=alignFrame();
+  if(F) return {t:(st.alignOff+15)/30, step:0.5/30, txt:`${st.alignOff>0?'+':''}${fmt(st.alignOff)} mm do implante`, apply:t=>{ st.alignOff=Math.round((t*30-15)*2)/2; }};
+  const Sx=st.curve.S; if(!Sx) return null; const n=Sx.length-1;
+  return {t:st.crossIdx/n, step:Math.max(1,Math.round(0.5/st.vol.p))/n, txt:`${fmt(st.crossIdx*st.vol.p)} mm da curva`, apply:t=>{ st.crossIdx=Math.round(t*n); }}; }
+function bottomSliderModel(){ if(!st.vol||st.mode!=='plan'||st.bottom==='3d') return null; const v=st.vol;
+  if(st.bottom==='axial') return {t:1-st.cur[2]/v.Z, step:v.sz/v.Z, txt:`Z ${fmt(st.cur[2])} mm`, apply:t=>{ st.cur[2]=Math.round((1-t)*v.Z/v.sz)*v.sz; }};
+  if(alignFrame()) return {t:(st.alignOffT+15)/30, step:0.5/30, txt:`${st.alignOffT>0?'+':''}${fmt(st.alignOffT)} mm (V/L)`, apply:t=>{ st.alignOffT=Math.round((t*30-15)*2)/2; }};
+  if(!st.curve.S) return null;
+  return {t:(st.panoOff+10)/20, step:0.5/20, txt:`${st.panoOff>0?'+':''}${fmt(st.panoOff)} mm (V/L)`, apply:t=>{ st.panoOff=Math.round((t*20-10)*2)/2; }}; }
+function initSliders(){
+  const top=panes[2], bot=panes[3];
+  SL.push(makeSlider(top.el.querySelector('.pane-body'), topSliderModel, t=>{ const m=topSliderModel(); if(!m) return; m.apply(t); invalidate({side:false}); }));
+  SL.push(makeSlider(bot.el.querySelector('.pane-body'), bottomSliderModel, t=>{ const m=bottomSliderModel(); if(!m) return; m.apply(t); invalidate(); }));
+}
+function updateSliders(){ SL.forEach(sl=>{ const m=sl.get(); sl.el.hidden=!m; if(!m) return; sl.th.style.top=(clamp(m.t,0,1)*100)+'%'; sl.tip.style.top=(clamp(m.t,0,1)*100)+'%'; sl.tip.textContent=m.txt; }); }
 
 /* ---------------- Interaction ---------------- */
 const HINTS={
@@ -1384,7 +1420,7 @@ $('#rep-pdf').addEventListener('click',async()=>{
 /* ---------------- Boot ---------------- */
 const ro=new ResizeObserver(()=>{ size3D(); render3D(); invalidate({img:false,side:false,three:false}); });
 panes.forEach(p=>ro.observe(p.cv)); ro.observe(c3d);
-assignKinds(); $('#hint').innerHTML='<b>Abrir tomografia</b> e escolha a pasta DICOM do exame, ou arraste a pasta para esta janela.';
+initSliders(); assignKinds(); $('#hint').innerHTML='<b>Abrir tomografia</b> e escolha a pasta DICOM do exame, ou arraste a pasta para esta janela.';
 invalidate();
 })();
 </script>
