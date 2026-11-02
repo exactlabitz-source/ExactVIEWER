@@ -215,6 +215,7 @@ select{background:var(--panel-2);border:1px solid var(--line);border-radius:6px;
       <button class="btn small" data-tool="implant" type="button">3 · Implante</button>
       <button class="btn small" data-tool="ruler" type="button">Régua</button>
       <button class="btn small on" id="btn-align" type="button" title="Transversal e tangencial passam pelo eixo do implante selecionado">Alinhar ao implante</button>
+      <button class="btn small" id="btn-axis" type="button" title="Prolonga o longo eixo do implante para avaliar a emergência em relação à coroa">Longo eixo</button>
       <span class="seg" id="bottom-seg" role="group" aria-label="Vista de baixo"><button type="button" data-bottom="pano" class="on">Tangencial / Panorâmica</button><button type="button" data-bottom="axial">Axial</button><button type="button" data-bottom="3d">3D</button></span>
     </div>
     <div class="hint" id="hint"></div>
@@ -349,7 +350,7 @@ function segSegDist(p1,q1,p2,q2){
 
 /* ---------------- State ---------------- */
 const st = {
-  vol:null, bottom:'pano', alignOn:true, alignOff:0, alignOffT:0, frozen:null, wl:{w:2600,l:700}, gamma:1.2, filter:'none', filterK:0.6, alignRotT:0, cur:[0,0,0], mode:'plan', tool:'nav',
+  vol:null, bottom:'pano', alignOn:true, alignOff:0, alignOffT:0, frozen:null, wl:{w:2600,l:700}, gamma:1.2, filter:'none', filterK:0.6, alignRotT:0, showAxis:false, cur:[0,0,0], mode:'plan', tool:'nav',
   curve:{pts:[], S:null, len:0, z:0, drawing:false}, crossIdx:0, panoSlab:8, panoOff:0, crossW:32,
   implants:[], sel:null, nerves:[], activeNerve:-1, nerveR:1.2, boneThr:400, boneOpacity:1,
   measures:[], idSeq:1, isDemo:false
@@ -648,6 +649,7 @@ function evaluate0(im){
 }
 
 /* ---------------- 2D rendering ---------------- */
+const AXIS_LEN=30; // mm de prolongamento do longo eixo para coronal
 const COL={imp:[236,75,142], impSel:[255,140,190], bad:[255,90,95], nerve:[242,193,78]};
 function applyFilter(G,T,w,h,mode,k){
   if(mode==='none'||k<=0) return;
@@ -877,6 +879,9 @@ function drawOverlays(p, ctx, X){
     const near=Math.abs(C.d)<im.d/2+2;
     if(!near) return;
     const sel=im.id===st.sel;
+    if(st.showAxis){ const E=proj(add(e.head,mul(im.a,AXIS_LEN))), B=proj(sub(e.apex,mul(im.a,3)));
+      if(E&&B){ ctx.save(); ctx.shadowColor='rgba(0,0,0,.7)'; ctx.shadowBlur=3; line(B.c,E.c,'#22D3EE',sel?2:1.5); ctx.restore();
+        if(Math.hypot(E.c[0]-H.c[0],E.c[1]-H.c[1])>40){ ctx.fillStyle='#22D3EE'; ctx.font='600 11px Nunito Sans, Arial'; ctx.fillText('longo eixo',E.c[0]+6,E.c[1]+4); } } }
     line(A.c,H.c, sel?'#FFFFFF':'rgba(255,255,255,.55)', sel?1.5:1, [5,4]);
     if(sel && p.kind!=='axial'){ dotAt(A.c,7,'#EC4B8E','#FFFFFF'); dotAt(H.c,3,'#FFFFFF'); }
     ctx.fillStyle='#FFFFFF'; ctx.font='700 12px Rubik, Arial'; ctx.fillText(String(idx+1), H.c[0]+8, H.c[1]-6);
@@ -968,6 +973,7 @@ $('#mode-plan').addEventListener('click',()=>setMode('plan'));
 $$('[data-bottom]').forEach(b=>b.addEventListener('click',()=>setBottom(b.dataset.bottom)));
 $('#btn-align').addEventListener('click',()=>{ st.alignOn=!st.alignOn; $('#btn-align').classList.toggle('on',st.alignOn); st.alignOff=0; st.alignOffT=0; st.alignRotT=0; const im=selImp(); if(im) centerOn(im); else invalidate(); });
 $('#mode-mpr').addEventListener('click',()=>setMode('mpr'));
+$('#btn-axis').addEventListener('click',()=>{ st.showAxis=!st.showAxis; $('#btn-axis').classList.toggle('on',st.showAxis); invalidate({side:false}); });
 
 function evtPos(p,e){ const r=p.cv.getBoundingClientRect(); return [e.clientX-r.left, e.clientY-r.top]; }
 function worldAtEvt(p,e){ if(!p.geo||!p.X) return null; const [x,y]=evtPos(p,e); const [u,v]=cvToImg(p.X,x,y); return toWorld(p,u,v); }
@@ -1302,6 +1308,7 @@ function sync3D(){
     const cg=compMesh(im); if(cg) grp.add(cg);
     if(st.boneOpacity>=0.99){ const ghost=new THREE.Mesh(envelopeGeo(im.d,im.L), new THREE.MeshBasicMaterial({color:col, transparent:true, opacity:0.45, depthWrite:false, depthFunc:THREE.GreaterDepth}));
       ghost.renderOrder=2; grp.add(ghost); }
+    if(st.showAxis){ const ax=new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.18,AXIS_LEN+im.L+3,8), new THREE.MeshBasicMaterial({color:0x22D3EE})); ax.position.y=(AXIS_LEN-3)/2; grp.add(ax); }
     grp.position.set(im.c[0],im.c[1],im.c[2]); grp.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), new THREE.Vector3(im.a[0],im.a[1],im.a[2])); G.add(grp); });
   const N=R3.groupNerve; while(N.children.length){ const c=N.children.pop(); c.geometry.dispose(); c.material.dispose(); }
   st.nerves.forEach(pl=>{ if(pl.length<2) return; const curve=new THREE.CatmullRomCurve3(pl.map(p=>new THREE.Vector3(p[0],p[1],p[2])));
@@ -1422,18 +1429,21 @@ function snapshot(kind, crossIdx){
   return {url:cv.toDataURL('image/jpeg',0.9), w:cv.width, h:cv.height};
 }
 function snapshotImp(kind, im){
-  const keep={rt:st.alignRotT, sel:st.sel, ao:st.alignOff, at:st.alignOffT, on:st.alignOn, mode:st.mode, cur:st.cur.slice(), fr:st.frozen};
-  const restore=()=>{ st.alignRotT=keep.rt; st.sel=keep.sel; st.alignOff=keep.ao; st.alignOffT=keep.at; st.alignOn=keep.on; st.mode=keep.mode; st.cur=keep.cur; st.frozen=keep.fr; };
-  st.sel=im.id; st.alignOff=0; st.alignOffT=0; st.alignRotT=0; st.alignOn=true; st.mode='plan'; st.frozen=null; st.cur=[im.c[0],im.c[1],im.c[2]];
+  const keep={cw:st.crossW, rt:st.alignRotT, sel:st.sel, ao:st.alignOff, at:st.alignOffT, on:st.alignOn, mode:st.mode, cur:st.cur.slice(), fr:st.frozen};
+  const restore=()=>{ st.crossW=keep.cw; st.alignRotT=keep.rt; st.sel=keep.sel; st.alignOff=keep.ao; st.alignOffT=keep.at; st.alignOn=keep.on; st.mode=keep.mode; st.cur=keep.cur; st.frozen=keep.fr; };
+  st.crossW=48; st.sel=im.id; st.alignOff=0; st.alignOffT=0; st.alignRotT=0; st.alignOn=true; st.mode='plan'; st.frozen=null; st.cur=[im.c[0],im.c[1],im.c[2]];
   const fake={kind: kind==='tang'?'pano':(kind==='cross'?'cross':'axial'), off:document.createElement('canvas'), img:null, forceF:1, zoom:1};
   renderImage(fake); const g=fake.geo; if(!g||!g.planar){ restore(); return null; }
   const q=st.vol.p, ch=compGeo(im).h;
-  const hmm=Math.max(22, im.L+ch+8), wmm=hmm*0.8;
-  const ctr= kind==='axial'? im.c : add(im.c, mul(im.a, ch/2));
+  // enquadramento mais aberto: pega o dente vizinho inteiro, a coroa e as estruturas ao redor
+  const hmm= kind==='axial' ? 30 : clamp(im.L+26,34,42), wmm=hmm*0.8;
+  const ctr= kind==='axial'? im.c : add(im.c, mul(im.a, 4.5));
   const t=toImg(fake, ctr); const wpx=wmm/q, hpx=hmm/q, sc=Math.min(5, 460/hpx);
   const cv=document.createElement('canvas'); cv.width=Math.round(wpx*sc); cv.height=Math.round(hpx*sc);
   const ctx=cv.getContext('2d'); ctx.fillStyle='#000'; ctx.fillRect(0,0,cv.width,cv.height); ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
   ctx.drawImage(fake.off, t[0]-wpx/2, t[1]-hpx/2, wpx, hpx, 0, 0, cv.width, cv.height);
+  if(st.showAxis&&kind!=='axial'){ const e=impEnds(im), toC=P=>{ const r=toImg(fake,P); return [(r[0]-(t[0]-wpx/2))*sc, (r[1]-(t[1]-hpx/2))*sc]; };
+    const A2=toC(sub(e.apex,mul(im.a,3))), E2=toC(add(e.head,mul(im.a,AXIS_LEN))); ctx.strokeStyle='#22D3EE'; ctx.lineWidth=2.5; ctx.beginPath(); ctx.moveTo(A2[0],A2[1]); ctx.lineTo(E2[0],E2[1]); ctx.stroke(); }
   ctx.fillStyle='#FFFFFF'; ctx.font='700 14px Rubik, Arial'; ctx.textBaseline='top';
   const lab = kind==='cross'?['L','V']:['D','E']; ctx.textAlign='left'; ctx.fillText(lab[0],8,8); ctx.textAlign='right'; ctx.fillText(lab[1],cv.width-8,8);
   const bar=5/q*sc; ctx.strokeStyle='#FFFFFF'; ctx.lineWidth=2; const x0=cv.width-bar-10, y0=cv.height-10; ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x0+bar,y0); ctx.stroke();
@@ -1454,7 +1464,7 @@ function collectReport(){
     return {n:i+1, im, ev, nS, iS, bS, shots, code:impCode(im)}; });
   return {date: now.toLocaleDateString('pt-BR')+' '+now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),
     exam: v? v.name:'—', voxel: v? `${fmt(v.sx,2)} × ${fmt(v.sy,2)} × ${fmt(v.sz,2)} mm`:'—', arcada: st.jaw==='max'?'Maxila':(st.jaw==='mand'?'Mandíbula':'—'),
-    three: snap3D(), rows,
+    rows,
     nerves: st.nerves.filter(n=>n.length>1).length, thr: st.boneThr};
 }
 let repData=null;
@@ -1481,7 +1491,6 @@ function openReport(){
     </div></section>
     <section><h3>Implantes selecionados</h3><div class="rep-table-wrap"><table class="rep-table"><tr><th>Nº</th><th>Região</th><th>Neodent Helix GM (mm)</th><th>Superfície</th><th>Código</th><th>Componente</th><th>Incl.</th><th>Canal</th><th>Vizinho</th><th>Osso</th><th>Avaliação</th></tr>${tableRows}</table></div></section>
     <section><h3>Cortes de cada implante</h3><div class="rep-imps">${cards}</div></section>
-    ${d.three?`<section><h3>Reconstrução 3D</h3><img class="shot" src="${d.three.url}" alt="Reconstrução 3D com implantes"></section>`:''}
     <section><h3>Observações</h3><textarea id="rep-notes" rows="4" style="width:100%;box-sizing:border-box" placeholder="Justificativa da escolha, enxerto, componentes protéticos…">${esc(rep.notes)}</textarea></section>
     <p class="rep-disc">Critérios: distância de 2 mm ou mais da borda do canal mandibular (${d.nerves} canal(is) marcado(s), raio ${fmt(st.nerveR)} mm); 3 mm ou mais entre implantes; 85% ou mais da superfície do implante acima do limiar ósseo (${d.thr}). Implantes da biblioteca Neodent Helix GM. Simulação para ensino e referência: nenhuma medida ou avaliação é absoluta e todas devem ser confirmadas pelo profissional no exame original e no software de planejamento. Não gera guia cirúrgica. Os resultados dependem da calibração do exame e da marcação do canal.</p>`;
   $('#rep-regiao').addEventListener('input',e=>rep.regiao=e.target.value);
@@ -1525,20 +1534,20 @@ async function buildPDF(){
     let xx=M; cells.forEach((c,i)=>{ doc.setTextColor(...(c[1]?stCol[c[1]]:ink)); if(c[1]) doc.setFont('helvetica','bold'); if(c[2]) doc.setFontSize(c[2]); doc.text(String(c[0]),xx+1,y+4.3); if(c[2]) doc.setFontSize(8.5); doc.setFont('helvetica','normal'); xx+=cols[i][1]; });
     y+=rowH; doc.setDrawColor(221,227,234); doc.setLineWidth(0.2); doc.line(M,y,PW-M,y); });
   y+=8;
-  need(80); section('Cortes de cada implante');
-  d.rows.forEach(r=>{ const iw=34, gap=3, ih=Math.max(...['ax','tg','tr'].map(k=>r.shots[k]?iw*r.shots[k].h/r.shots[k].w:iw)), bh=Math.max(ih+16, 66);
-    need(bh+4); const x0=M, top=y, bw=PW-2*M;
+  need(125); section('Cortes de cada implante');
+  d.rows.forEach(r=>{ const bw=PW-2*M, gap=3, iw=(bw-8-2*gap)/3, ih=Math.max(...['ax','tg','tr'].map(k=>r.shots[k]?iw*r.shots[k].h/r.shots[k].w:iw*1.25));
+    const kv=[['Helix GM','Ø '+dTxt(r.im.d)+' × '+lTxt(r.im.L)+' mm'],['Superfície',r.im.surf],['Código',r.code],['Componente',compParts(r.im)[0]],['Medida comp.',compParts(r.im)[1]],['Cód. comp.',compParts(r.im)[2]],['Inclinação',fmt(r.ev.angle,0)+'°'],['Canal',r.ev.dNerve==null?'sem canal':fmt(r.ev.dNerve)+' mm',r.nS],['Vizinho',r.ev.dImp==null?'—':fmt(r.ev.dImp)+' mm',r.iS],['Osso',fmt(r.ev.bone,0)+'%',r.bS]];
+    const rowsKV=Math.ceil(kv.length/2), bh=9+ih+7+rowsKV*4.8+3;
+    need(bh+4); const x0=M, top=y;
     doc.setDrawColor(221,227,234); doc.setLineWidth(0.3); doc.roundedRect(x0,top,bw,bh,2,2);
     doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(...navy); doc.text('Implante '+r.n+(r.im.region?' · região '+r.im.region:''),x0+4,top+6);
-    doc.setTextColor(...stCol[r.ev.status]); doc.text(stText(r.ev.status), x0+3*iw+2*gap+4, top+6, {align:'right'});
+    doc.setTextColor(...stCol[r.ev.status]); doc.text(stText(r.ev.status), x0+bw-4, top+6, {align:'right'});
     doc.setFont('helvetica','normal');
     [['ax','Axial'],['tg','Tangencial'],['tr','Transversal']].forEach(([k,cap],i)=>{ const sh=r.shots[k], xx=x0+4+i*(iw+gap), hh=sh?iw*sh.h/sh.w:iw;
-      if(sh) doc.addImage(sh.url,'JPEG',xx,top+9,iw,hh); doc.setFontSize(7); doc.setTextColor(...grey); doc.text(cap.toUpperCase(), xx+iw/2, top+9+ih+4, {align:'center'}); });
-    const tx=x0+4+3*iw+2*gap+8, tr=x0+bw-4; let ty=top+11; doc.setFontSize(8);
-    const kv=[['Helix GM','Ø '+dTxt(r.im.d)+' × '+lTxt(r.im.L)+' mm'],['Superfície',r.im.surf],['Código',r.code],['Componente',compParts(r.im)[0]],['Medida comp.',compParts(r.im)[1]],['Cód. comp.',compParts(r.im)[2]],['Inclinação',fmt(r.ev.angle,0)+'°'],['Canal',r.ev.dNerve==null?'sem canal':fmt(r.ev.dNerve)+' mm',r.nS],['Vizinho',r.ev.dImp==null?'—':fmt(r.ev.dImp)+' mm',r.iS],['Osso',fmt(r.ev.bone,0)+'%',r.bS]];
-    kv.forEach(k=>{ doc.setTextColor(...grey); doc.text(k[0],tx,ty); doc.setTextColor(...(k[2]?stCol[k[2]]:ink)); doc.text(String(k[1]),tr,ty,{align:'right'}); ty+=4.8; });
+      if(sh) doc.addImage(sh.url,'JPEG',xx,top+9+(ih-hh)/2,iw,hh); doc.setFontSize(7); doc.setTextColor(...grey); doc.text(cap.toUpperCase(), xx+iw/2, top+9+ih+4, {align:'center'}); });
+    let ty=top+9+ih+10; doc.setFontSize(8); const colW=(bw-8-10)/2;
+    kv.forEach((k,i)=>{ const cx=x0+4+(i%2)*(colW+10), yy=ty+Math.floor(i/2)*4.8; doc.setTextColor(...grey); doc.text(k[0],cx,yy); doc.setTextColor(...(k[2]?stCol[k[2]]:ink)); doc.text(String(k[1]),cx+colW,yy,{align:'right'}); });
     y=top+bh+5; });
-  if(d.three){ const w=PW-2*M, h=Math.min(85,w*d.three.h/d.three.w), ww=h*d.three.w/d.three.h; need(h+14); section('Reconstrução 3D'); doc.addImage(d.three.url,'JPEG',M+(w-ww)/2,y,ww,h); y+=h+8; }
   if(rep.notes.trim()){ section('Observações'); doc.setFontSize(9); doc.setTextColor(...ink); const lines=doc.splitTextToSize(rep.notes,PW-2*M); need(lines.length*4.5); doc.text(lines,M,y+2); y+=lines.length*4.5+6; }
   section('Critérios'); doc.setFontSize(8); doc.setTextColor(...grey);
   const crit=doc.splitTextToSize(`Distância de 2 mm ou mais da borda do canal mandibular (${d.nerves} canal(is) marcado(s), raio ${fmt(st.nerveR)} mm); 3 mm ou mais entre implantes; 85% ou mais da superfície do implante acima do limiar ósseo (${d.thr}). Implantes da biblioteca Neodent Helix GM. Valores de referência para ensino, não absolutos: confirmar no exame original e no software de planejamento. Medidas dependem da calibração do exame e da marcação do canal.`, PW-2*M);
