@@ -48,7 +48,13 @@ button{cursor:pointer}
 
 /* Work area */
 .work{flex:1;min-height:0;display:flex}
-.grid{flex:1;min-width:0;display:grid;gap:4px;padding:4px;background:var(--bg);grid-template-columns:1fr 1.35fr;grid-template-rows:1fr 1fr}
+.grid{flex:1;min-width:0;display:grid;gap:4px;padding:4px;background:var(--bg)}
+.grid.lay-mpr{grid-template-columns:1fr 1.35fr;grid-template-rows:1fr 1fr}
+.grid.lay-plan{grid-template-columns:1fr 1fr 1fr;grid-template-rows:1fr 1fr}
+.grid.lay-plan .pane[data-slot="3"], .grid.lay-plan #pane3d{grid-column:1 / -1}
+.bottom-switch{display:inline-flex;gap:4px;margin-left:8px}
+.bottom-switch button{background:transparent;border:1px solid var(--line);border-radius:5px;color:var(--muted);font-size:11px;font-weight:600;padding:2px 8px}
+.bottom-switch button.on{background:var(--accent);border-color:var(--accent);color:#1A0610}
 .pane{position:relative;background:var(--view);border:1px solid var(--line);border-radius:6px;overflow:hidden;display:flex;flex-direction:column;min-height:0;min-width:0}
 .pane.active{border-color:var(--accent-soft)}
 .pane-head{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 10px;background:rgba(11,45,72,.85);font-size:12px;border-bottom:1px solid var(--line)}
@@ -137,7 +143,7 @@ select{background:var(--panel-2);border:1px solid var(--line);border-radius:6px;
   body{overflow:auto}
   .app{height:auto;min-height:100%}
   .work{flex-direction:column}
-  .grid{grid-template-columns:1fr;grid-template-rows:none;grid-auto-rows:minmax(300px, 70vw)}
+  .grid, .grid.lay-plan, .grid.lay-mpr{grid-template-columns:1fr;grid-template-rows:none;grid-auto-rows:minmax(300px, 70vw)}
   .side{width:auto;border-left:0;border-top:1px solid var(--line);padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px))}
   .sep{display:none}
 }
@@ -165,21 +171,23 @@ select{background:var(--panel-2);border:1px solid var(--line);border-radius:6px;
     </div>
     <div class="group" role="toolbar" aria-label="Ferramentas">
       <button class="btn small on" data-tool="nav" type="button">Navegar</button>
-      <button class="btn small" data-tool="curve" type="button">Curva</button>
-      <button class="btn small" data-tool="nerve" type="button">Canal</button>
-      <button class="btn small" data-tool="implant" type="button">Implante</button>
+      <button class="btn small" data-tool="curve" type="button">1 · Curva</button>
+      <button class="btn small" data-tool="nerve" type="button">2 · Canal</button>
+      <button class="btn small" data-tool="implant" type="button">3 · Implante</button>
       <button class="btn small" data-tool="ruler" type="button">Régua</button>
       <button class="btn small on" id="btn-align" type="button" title="Transversal e tangencial passam pelo eixo do implante selecionado">Alinhar ao implante</button>
+      <span class="seg" id="bottom-seg" role="group" aria-label="Vista de baixo"><button type="button" data-bottom="pano" class="on">Tangencial / Panorâmica</button><button type="button" data-bottom="axial">Axial</button><button type="button" data-bottom="3d">3D</button></span>
     </div>
     <div class="hint" id="hint"></div>
   </header>
 
   <main class="work">
-    <section class="grid" id="grid">
-      <div class="pane" data-slot="0"><div class="pane-head"><span class="pane-title"></span><span class="pane-info"></span></div><div class="pane-body"><canvas></canvas><div class="pane-msg" hidden></div></div></div>
-      <div class="pane" data-slot="1"><div class="pane-head"><span class="pane-title"></span><span class="pane-info"></span></div><div class="pane-body"><canvas></canvas><div class="pane-msg" hidden></div></div></div>
-      <div class="pane" data-slot="2"><div class="pane-head"><span class="pane-title"></span><span class="pane-info"></span></div><div class="pane-body"><canvas></canvas><div class="pane-msg" hidden></div></div></div>
-      <div class="pane" data-slot="3"><div class="pane-head"><span class="pane-title">3D</span><span class="pane-info" id="info3d">arraste para girar · roda para zoom</span></div><div class="pane-body"><canvas id="c3d"></canvas><div class="pane-msg" id="msg3d" hidden></div></div></div>
+    <section class="grid lay-plan" id="grid">
+      <div class="pane pane2d" data-slot="0"><div class="pane-head"><span class="pane-title"></span><span class="pane-info"></span></div><div class="pane-body"><canvas></canvas><div class="pane-msg" hidden></div></div></div>
+      <div class="pane pane2d" data-slot="1"><div class="pane-head"><span class="pane-title"></span><span class="pane-info"></span></div><div class="pane-body"><canvas></canvas><div class="pane-msg" hidden></div></div></div>
+      <div class="pane pane2d" data-slot="2"><div class="pane-head"><span class="pane-title"></span><span class="pane-info"></span></div><div class="pane-body"><canvas></canvas><div class="pane-msg" hidden></div></div></div>
+      <div class="pane pane2d" data-slot="3"><div class="pane-head"><span class="pane-title"></span><span class="pane-info"></span></div><div class="pane-body"><canvas></canvas><div class="pane-msg" hidden></div></div></div>
+      <div class="pane" id="pane3d"><div class="pane-head"><span class="pane-title">3D</span><span class="pane-info" id="info3d">arraste para girar · roda para zoom</span></div><div class="pane-body"><canvas id="c3d"></canvas><div class="pane-msg" id="msg3d" hidden></div></div></div>
     </section>
 
     <aside class="side">
@@ -280,7 +288,7 @@ function segSegDist(p1,q1,p2,q2){
 
 /* ---------------- State ---------------- */
 const st = {
-  vol:null, alignOn:true, alignOff:0, alignOffT:0, frozen:null, wl:{w:2600,l:700}, gamma:1.2, filter:'realce', filterK:0.6, cur:[0,0,0], mode:'plan', tool:'nav',
+  vol:null, bottom:'pano', alignOn:true, alignOff:0, alignOffT:0, frozen:null, wl:{w:2600,l:700}, gamma:1.2, filter:'realce', filterK:0.6, cur:[0,0,0], mode:'plan', tool:'nav',
   curve:{pts:[], S:null, len:0, z:0, drawing:false}, crossIdx:0, panoSlab:8, panoOff:0, crossW:32,
   implants:[], sel:null, nerves:[], activeNerve:-1, nerveR:1.2, boneThr:400, boneOpacity:1,
   measures:[], idSeq:1, isDemo:false
@@ -469,17 +477,25 @@ function crossFrame(){ const S=st.curve.S; if(!S) return null; const o=S[clamp(s
 function nearestCurveIdx(x,y){ const S=st.curve.S; if(!S) return -1; let b=1e18,bi=0; for(let i=0;i<S.length;i++){const d=(S[i].x-x)**2+(S[i].y-y)**2; if(d<b){b=d;bi=i;}} return bi; }
 
 /* ---------------- Panes ---------------- */
-const panes = $$('.pane').slice(0,3).map(el=>({el, slot:+el.dataset.slot, cv:el.querySelector('canvas'), ctx:el.querySelector('canvas').getContext('2d'),
+const panes = $$('.pane2d').map(el=>({el, slot:+el.dataset.slot, cv:el.querySelector('canvas'), ctx:el.querySelector('canvas').getContext('2d'),
   title:el.querySelector('.pane-title'), info:el.querySelector('.pane-info'), msg:el.querySelector('.pane-msg'),
   kind:null, zoom:1, panX:0, panY:0, off:document.createElement('canvas'), img:null, w:0, h:0, dirty:true, geo:null}));
-const pane3dEl = $('.pane[data-slot="3"]');
+const pane3dEl = $('#pane3d');
 let activePane=null;
 
 function assignKinds(){
-  const kinds = st.mode==='plan' ? ['axial','pano','cross'] : ['axial','coronal','sagittal'];
+  const plan=st.mode==='plan';
+  const kinds = plan ? ['cross','cross','cross', st.bottom==='axial'?'axial':'pano'] : ['axial','coronal','sagittal', null];
+  const offs = plan ? [1,0,-1,0] : [0,0,0,0];
   const titles = {axial:'Axial', coronal:'Coronal', sagittal:'Sagital', pano:'Panorâmica', cross:'Transversal'};
-  panes.forEach((p,i)=>{ if(p.kind!==kinds[i]){p.zoom=1;p.panX=0;p.panY=0;} p.kind=kinds[i]; p.title.textContent=titles[p.kind]; p.dirty=true; });
+  $('#grid').classList.toggle('lay-plan',plan); $('#grid').classList.toggle('lay-mpr',!plan);
+  panes.forEach((p,i)=>{ if(p.kind!==kinds[i]){p.zoom=1;p.panX=0;p.panY=0;} p.kind=kinds[i]; p.crossOff=offs[i]; p.el.hidden = !kinds[i] || (plan && i===3 && st.bottom==='3d');
+    if(kinds[i]) p.title.textContent=titles[p.kind]; p.dirty=true; });
+  pane3dEl.hidden = plan && st.bottom!=='3d';
+  $('#bottom-seg').hidden=!plan; $$('[data-bottom]').forEach(b=>b.classList.toggle('on',b.dataset.bottom===st.bottom));
+  requestAnimationFrame(()=>{ size3D(); render3D(); });
 }
+function setBottom(v){ st.bottom=v; assignKinds(); invalidate(); }
 
 // geometry per pane: returns {planar, O, DU, DV, w, h, nrm} or pano
 function alignFrame(){
@@ -497,14 +513,14 @@ function paneGeo(p){
   const v=st.vol; if(!v) return null; const q=v.p, c=st.cur;
   if(p.kind==='cross'||p.kind==='pano'){ const F=alignFrame();
     if(F){ const W=p.kind==='cross'?st.crossW:Math.min(60,Math.max(40,st.curve.len||50)), H=Math.min(v.Z,44);
-      const hor=p.kind==='cross'?F.h:F.t, nrm=p.kind==='cross'?norm(cross(F.h,F.up)):F.h, off=p.kind==='cross'?st.alignOff:st.alignOffT;
+      const hor=p.kind==='cross'?F.h:F.t, nrm=p.kind==='cross'?norm(cross(F.h,F.up)):F.h, off=p.kind==='cross'?st.alignOff+(p.crossOff||0):st.alignOffT;
       const O=add(add(add(F.C,mul(hor,-W/2)),mul(F.up,H/2)),mul(nrm,off));
       return {planar:true, aligned:true, O, DU:mul(hor,q), DV:mul(F.up,-q), w:Math.floor(W/q)+1, h:Math.floor(H/q)+1, nrm}; } }
   switch(p.kind){
     case 'axial': return {planar:true, O:[0,0,c[2]], DU:[q,0,0], DV:[0,q,0], w:Math.floor(v.X/q)+1, h:Math.floor(v.Y/q)+1, nrm:[0,0,1]};
     case 'coronal': return {planar:true, O:[0,c[1],v.Z], DU:[q,0,0], DV:[0,0,-q], w:Math.floor(v.X/q)+1, h:Math.floor(v.Z/q)+1, nrm:[0,1,0]};
     case 'sagittal': return {planar:true, O:[c[0],0,v.Z], DU:[0,q,0], DV:[0,0,-q], w:Math.floor(v.Y/q)+1, h:Math.floor(v.Z/q)+1, nrm:[1,0,0]};
-    case 'cross': { const o=crossFrame(); if(!o) return null; const W=st.crossW;
+    case 'cross': { const Sx=st.curve.S; if(!Sx) return null; const o=Sx[clamp(st.crossIdx+Math.round((p.crossOff||0)/q),0,Sx.length-1)]; const W=st.crossW;
       return {planar:true, O:[o.x-o.nx*W/2, o.y-o.ny*W/2, v.Z], DU:[o.nx*q,o.ny*q,0], DV:[0,0,-q], w:Math.floor(W/q)+1, h:Math.floor(v.Z/q)+1, nrm:[o.tx,o.ty,0]}; }
     case 'pano': { const Sx=st.curve.S; if(!Sx) return null; return {planar:false, w:Sx.length, h:Math.floor(v.Z/q)+1}; }
   }
@@ -656,6 +672,7 @@ const imgToCv=(X,u,v)=>[X.ox+u*X.s, X.oy+v*X.s];
 const cvToImg=(X,x,y)=>[(x-X.ox)/X.s, (y-X.oy)/X.s];
 
 function drawPane(p){
+  if(p.el.hidden||!p.kind) return;
   const ctx=p.ctx, dpr=window.devicePixelRatio||1, r=p.cv.getBoundingClientRect();
   const W=Math.max(1,Math.round(r.width*dpr)), H=Math.max(1,Math.round(r.height*dpr));
   if(p.cv.width!==W||p.cv.height!==H){p.cv.width=W;p.cv.height=H;}
@@ -676,9 +693,10 @@ function drawPane(p){
   const v=st.vol, c=st.cur;
   const info = {axial:`Z ${fmt(c[2])} mm`, coronal:`Y ${fmt(c[1])} mm`, sagittal:`X ${fmt(c[0])} mm`,
     pano:`curva ${fmt(st.curve.len,0)} mm · espessura ${st.panoSlab} mm`, cross:`posição ${fmt(st.crossIdx*v.p)} mm de ${fmt(st.curve.len,0)}`}[p.kind];
-  if(g.aligned){ p.title.textContent = p.kind==='cross' ? 'Transversal ao implante' : 'Tangencial ao implante';
+  const offTxt = p.crossOff ? ` ${p.crossOff>0?'+':''}${fmt(p.crossOff)} mm` : '';
+  if(g.aligned){ p.title.textContent = p.kind==='cross' ? 'Transversal'+(offTxt||' · centro') : 'Tangencial ao implante';
     const off=p.kind==='cross'?st.alignOff:st.alignOffT; p.info.textContent=`alinhado ao implante${off?` · ${off>0?'+':''}${fmt(off)} mm`:''}`+(p.zoom!==1?` · ${Math.round(p.zoom*100)}%`:''); return; }
-  if(p.kind==='cross') p.title.textContent='Transversal'; if(p.kind==='pano') p.title.textContent='Panorâmica';
+  if(p.kind==='cross') p.title.textContent='Transversal'+(offTxt||' · centro'); if(p.kind==='pano') p.title.textContent='Panorâmica';
   p.info.textContent = info + (p.zoom!==1?` · ${Math.round(p.zoom*100)}%`:'');
 }
 function showMsg(p,t){ p.msg.hidden=!t; if(t) p.msg.textContent=t; }
@@ -761,6 +779,8 @@ const HINTS={
 function setTool(t){
   if(st.tool==='curve'&&t!=='curve') st.curve.drawing=false;
   if(t!=='nerve') st.activeNerve=-1;
+  if(t==='curve'&&st.mode==='plan'&&st.bottom!=='axial') setBottom('axial');
+  if(t==='nerve'&&st.mode==='plan'&&st.bottom!=='pano') setBottom('pano');
   st.tool=t; $$('[data-tool]').forEach(b=>b.classList.toggle('on',b.dataset.tool===t)); $('#hint').innerHTML=HINTS[t]; invalidate({img:false,three:false});
 }
 function setMode(m){
@@ -769,6 +789,7 @@ function setMode(m){
 }
 $$('[data-tool]').forEach(b=>b.addEventListener('click',()=>setTool(b.dataset.tool)));
 $('#mode-plan').addEventListener('click',()=>setMode('plan'));
+$$('[data-bottom]').forEach(b=>b.addEventListener('click',()=>setBottom(b.dataset.bottom)));
 $('#btn-align').addEventListener('click',()=>{ st.alignOn=!st.alignOn; $('#btn-align').classList.toggle('on',st.alignOn); st.alignOff=0; st.alignOffT=0; const im=selImp(); if(im) centerOn(im); else invalidate(); });
 $('#mode-mpr').addEventListener('click',()=>setMode('mpr'));
 
@@ -837,7 +858,7 @@ panes.forEach(p=>{
     if((drag.type==='move'||drag.type==='rot')&&drag.im){ st.frozen=null; centerOn(drag.im); }
     drag=null; };
   cv.addEventListener('pointerup',end); cv.addEventListener('pointercancel',end);
-  cv.addEventListener('dblclick',e=>{ if(st.tool==='curve'&&st.curve.drawing){ st.curve.drawing=false; if(st.curve.pts.length>2) st.curve.pts.pop(); buildCurve(); invalidate(); flash('Curva pronta. Panorâmica e transversal atualizadas.'); }
+  cv.addEventListener('dblclick',e=>{ if(st.tool==='curve'&&st.curve.drawing){ st.curve.drawing=false; if(st.curve.pts.length>2) st.curve.pts.pop(); buildCurve(); invalidate(); setBottom('pano'); flash('Curva pronta. Panorâmica e transversais atualizadas.'); }
     else if(st.tool==='nerve'&&st.activeNerve>=0){ const pl=st.nerves[st.activeNerve]; if(pl.length>1) pl.pop(); if(pl.length<2) st.nerves.splice(st.activeNerve,1); st.activeNerve=-1; invalidate(); } });
   cv.addEventListener('wheel',e=>{
     if(!st.vol||!p.geo) return; e.preventDefault();
@@ -1295,7 +1316,7 @@ function openReport(){
   $('#report').hidden=false; $('#report').scrollTop=0;
 }
 $('#btn-report').addEventListener('click',openReport);
-function startNewImplant(){ if(!st.vol){ flash('Abra uma tomografia primeiro.'); return; } st.sel=null; st.frozen=null; setTool('implant');
+function startNewImplant(){ if(!st.vol){ flash('Abra uma tomografia primeiro.'); return; } st.sel=null; st.frozen=null; if(st.mode!=='plan') setMode('plan'); if(st.bottom!=='pano') setBottom('pano'); setTool('implant');
   flash(st.curve.S ? 'Na panorâmica, clique na região do novo implante para levar a transversal até lá. Depois clique na crista da transversal.' : 'Desenhe a curva da arcada no axial primeiro (ferramenta Curva).'); invalidate(); }
 $('#btn-new-imp').addEventListener('click',startNewImplant);
 $('#rep-close').addEventListener('click',()=>{ $('#report').hidden=true; });
