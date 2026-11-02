@@ -77,6 +77,13 @@ button{cursor:pointer}
 .kv dt{color:var(--muted)} .kv dd{margin:0;font-family:var(--f-mono);text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .field{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
+.more{border:1px solid var(--line);border-radius:8px;background:rgba(255,255,255,.02)}
+.more summary{cursor:pointer;list-style:none;padding:9px 12px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px}
+.more summary::-webkit-details-marker{display:none}
+.more summary::before{content:'▸';color:var(--accent-soft);transition:transform .15s}
+.more[open] summary::before{transform:rotate(90deg)}
+.more summary .pane-info{margin-left:auto;font-weight:400}
+.more-body{display:flex;flex-direction:column;gap:12px;padding:4px 12px 12px}
 .field .val{font-family:var(--f-mono);color:var(--fg)}
 .field-top{display:flex;justify-content:space-between}
 input[type=range]{width:100%;accent-color:var(--accent)}
@@ -234,10 +241,12 @@ select{background:var(--panel-2);border:1px solid var(--line);border-radius:6px;
           <label class="field" for="r-bri"><span class="field-top"><span>Brilho</span><span class="val" id="v-bri"></span></span><input type="range" id="r-bri" min="0" max="1000" step="1"></label>
           <label class="field" for="r-con"><span class="field-top"><span>Contraste</span><span class="val" id="v-con"></span></span><input type="range" id="r-con" min="0" max="1000" step="1"></label>
           <label class="field" for="r-gam"><span class="field-top"><span>Tons de cinza (gama)</span><span class="val" id="v-gam"></span></span><input type="range" id="r-gam" min="0.5" max="2.5" step="0.05"></label>
-          <div class="field"><span>Filtro de imagem</span>
-            <div class="seg" role="group" aria-label="Filtro de imagem" style="align-self:flex-start"><button type="button" id="flt-none">Original</button><button type="button" id="flt-hd">HD</button></div>
+          <div class="field"><span>Filtro</span>
+            <div class="seg" role="group" aria-label="Filtro" style="align-self:flex-start"><button type="button" data-flt="none">Original</button><button type="button" data-flt="ruido" title="Média numa fatia de 1 mm: menos granulado">Menos ruído</button><button type="button" data-flt="realce" title="Menos ruído + realce de contraste local">Realce</button></div>
           </div>
-          <label class="field" for="r-fk" id="fk-wrap"><span class="field-top"><span>Intensidade do HD</span><span class="val" id="v-fk"></span></span><input type="range" id="r-fk" min="0.2" max="1.5" step="0.05"></label>
+          <details class="more" id="more-adj">
+          <summary>Mais ajustes <span class="pane-info">panorâmica, osso e 3D</span></summary>
+          <div class="more-body">
           <div class="row">
             <button class="btn small" data-wl="auto" type="button">Automático</button>
             <button class="btn small" data-wl="bone" type="button">Osso</button>
@@ -249,6 +258,8 @@ select{background:var(--panel-2);border:1px solid var(--line);border-radius:6px;
           <label class="field" for="r-thr"><span class="field-top"><span>Limiar do osso (3D e cobertura)</span><span class="val" id="v-thr"></span></span><input type="range" id="r-thr" min="0" max="3000" step="10"></label>
           <label class="field" for="r-op"><span class="field-top"><span>Opacidade do osso no 3D</span><span class="val" id="v-op"></span></span><input type="range" id="r-op" min="0.15" max="1" step="0.05"></label>
           <div class="row"><button class="btn small" id="btn-3d" type="button">Atualizar 3D</button><span class="legend"><span><i style="background:var(--accent)"></i>implante</span><span><i style="background:var(--nerve)"></i>canal</span></span></div>
+          </div>
+          </details>
         </div>
       </section>
 
@@ -338,7 +349,7 @@ function segSegDist(p1,q1,p2,q2){
 
 /* ---------------- State ---------------- */
 const st = {
-  vol:null, bottom:'pano', alignOn:true, alignOff:0, alignOffT:0, frozen:null, wl:{w:2600,l:700}, gamma:1.2, filter:'realce', filterK:0.6, cur:[0,0,0], mode:'plan', tool:'nav',
+  vol:null, bottom:'pano', alignOn:true, alignOff:0, alignOffT:0, frozen:null, wl:{w:2600,l:700}, gamma:1.2, filter:'none', filterK:0.6, alignRotT:0, cur:[0,0,0], mode:'plan', tool:'nav',
   curve:{pts:[], S:null, len:0, z:0, drawing:false}, crossIdx:0, panoSlab:8, panoOff:0, crossW:32,
   implants:[], sel:null, nerves:[], activeNerve:-1, nerveR:1.2, boneThr:400, boneOpacity:1,
   measures:[], idSeq:1, isDemo:false
@@ -563,7 +574,8 @@ function paneGeo(p){
   const v=st.vol; if(!v) return null; const q=v.p, c=st.cur;
   if(p.kind==='cross'||p.kind==='pano'){ const F=alignFrame();
     if(F){ const W=p.kind==='cross'?st.crossW:Math.min(60,Math.max(40,st.curve.len||50)), H=Math.min(v.Z,44);
-      const hor=p.kind==='cross'?F.h:F.t, nrm=p.kind==='cross'?norm(cross(F.h,F.up)):F.h, off=p.kind==='cross'?st.alignOff+(p.crossOff||0):st.alignOffT;
+      const ph=(st.alignRotT||0)*Math.PI/180, tR=add(mul(F.t,Math.cos(ph)),mul(F.h,Math.sin(ph))), hR=sub(mul(F.h,Math.cos(ph)),mul(F.t,Math.sin(ph)));
+      const hor=p.kind==='cross'?F.h:tR, nrm=p.kind==='cross'?norm(cross(F.h,F.up)):hR, off=p.kind==='cross'?st.alignOff+(p.crossOff||0):st.alignOffT;
       const O=add(add(add(F.C,mul(hor,-W/2)),mul(F.up,H/2)),mul(nrm,off));
       return {planar:true, aligned:true, O, DU:mul(hor,q), DV:mul(F.up,-q), w:Math.floor(W/q)+1, h:Math.floor(H/q)+1, nrm}; } }
   switch(p.kind){
@@ -669,6 +681,21 @@ let OBJID=0; const oid=o=>o?(o.__id||(o.__id=++OBJID)):0;
 const f4=a=>a.map(x=>x.toFixed(3)).join(',');
 function wantF(p){ if(p.forceF) return p.forceF; const g=p.geo; if(!g) return 1; const r=p.cv.getBoundingClientRect(); const dpr=Math.min(window.devicePixelRatio||1,1.5);
   const s=Math.min(r.width/g.w, r.height/g.h)*0.96*p.zoom*dpr; return Math.max(1,1/Math.max(s,1e-3)); }
+function smooth121(G,T,w,h){ // suavização leve 1-2-1 no plano
+  for(let y=0;y<h;y++){ const r=y*w; for(let x=0;x<w;x++){ const a=x>0?x-1:x, b=x<w-1?x+1:x; T[r+x]=(G[r+a]+2*G[r+x]+G[r+b])*0.25; } }
+  for(let y=0;y<h;y++){ const ra=(y>0?y-1:y)*w, r=y*w, rb=(y<h-1?y+1:y)*w; for(let x=0;x<w;x++) G[r+x]=(T[ra+x]+2*T[r+x]+T[rb+x])*0.25; } }
+// realce de contraste local (CLAHE): destaca cortical, trabeculado, canal e raízes
+function clahe(GR,w,h){
+  const T=56, tx=Math.max(1,Math.round(w/T)), ty=Math.max(1,Math.round(h/T)), maps=new Uint8Array(tx*ty*256), H=new Uint32Array(256);
+  for(let j=0;j<ty;j++) for(let i=0;i<tx;i++){ H.fill(0); const x0=Math.floor(i*w/tx), x1=Math.floor((i+1)*w/tx), y0=Math.floor(j*h/ty), y1=Math.floor((j+1)*h/ty); let cnt=0;
+    for(let y=y0;y<y1;y++){ const r=y*w; for(let x=x0;x<x1;x++){ const v=GR[r+x]; if(v>6){ H[v]++; cnt++; } } }
+    const mp=maps.subarray((j*tx+i)*256,(j*tx+i+1)*256); if(cnt<16){ for(let v=0;v<256;v++) mp[v]=v; continue; }
+    const lim=Math.max(1,Math.round(cnt/250*4)); let ex=0; for(let v=0;v<256;v++){ if(H[v]>lim){ ex+=H[v]-lim; H[v]=lim; } } const add=ex/250;
+    let c=0; for(let v=0;v<256;v++){ if(v>6) c+=H[v]+add; mp[v]=v<=6?v:Math.min(255,Math.round(c/cnt*255)); } }
+  for(let y=0;y<h;y++){ let fy=(y+0.5)/h*ty-0.5; const j0=Math.max(0,Math.floor(fy)), j1=Math.min(ty-1,j0+1); fy=Math.min(1,Math.max(0,fy-j0)); const r=y*w;
+    for(let x=0;x<w;x++){ const v=GR[r+x]; if(v<=6) continue; let fx=(x+0.5)/w*tx-0.5; const i0=Math.max(0,Math.floor(fx)), i1=Math.min(tx-1,i0+1); fx=Math.min(1,Math.max(0,fx-i0));
+      const a=maps[(j0*tx+i0)*256+v], b=maps[(j0*tx+i1)*256+v], c2=maps[(j1*tx+i0)*256+v], d=maps[(j1*tx+i1)*256+v];
+      const e=(a*(1-fx)+b*fx)*(1-fy)+(c2*(1-fx)+d*fx)*fy; GR[r+x]=Math.round(0.15*v+0.85*e); } } }
 function renderImage(p){
   const g=p.geo=paneGeo(p);
   if(!st.vol||!g){ p.img=null; return; }
@@ -692,22 +719,26 @@ function renderImage(p){
     let slabN=0, slabStep=0;
     if(!g.planar && st.panoSlab>0){ slabN=Math.min(fast?2:8, Math.max(1, Math.round(st.panoSlab/2/q))); slabStep=st.panoSlab/2/slabN; }
     let o=0;
+    // filtro: média numa fatia fina perpendicular ao corte (≈1 mm) — reduz o ruído do CBCT de verdade
+    const PSL = (filt!=='none' && g.planar) ? 2 : 0, ns = g.planar ? mul(g.nrm, 0.25) : null;
     if(g.planar){ const O=g.O, DU=g.DU, DV=g.DV;
       for(let V=0;V<h;V++){ const v=V*f+half; const bx=O[0]+v*DV[0], by=O[1]+v*DV[1], bz=O[2]+v*DV[2];
-        for(let U=0;U<w;U++,o++){ const u=U*f+half; Gb[o]=S(bx+u*DU[0], by+u*DU[1], bz+u*DU[2]); } } }
+        if(PSL){ for(let U=0;U<w;U++,o++){ const u=U*f+half, x=bx+u*DU[0], y=by+u*DU[1], z=bz+u*DU[2]; let acc=0; for(let k=-PSL;k<=PSL;k++) acc+=S(x+k*ns[0], y+k*ns[1], z+k*ns[2]); Gb[o]=acc/(2*PSL+1); } }
+        else for(let U=0;U<w;U++,o++){ const u=U*f+half; Gb[o]=S(bx+u*DU[0], by+u*DU[1], bz+u*DU[2]); } } }
     else { const nS=Sx.length-1;
       for(let V=0;V<h;V++){ const z=VZ-(V*f+half)*q;
         for(let U=0;U<w;U++,o++){ let iu=Math.round(U*f+half); if(iu>nS) iu=nS; const c=Sx[iu], x=c.x+c.nx*st.panoOff, y=c.y+c.ny*st.panoOff;
           if(slabN){ let acc=0; for(let s=-slabN;s<=slabN;s++) acc+=S(x+c.nx*s*slabStep, y+c.ny*s*slabStep, z); Gb[o]=acc/(2*slabN+1); } else Gb[o]=S(x,y,z); } } }
-    applyFilter(Gb, p.tmp, w, h, filt, st.filterK);
+    if(filt==='realce') smooth121(Gb, p.tmp, w, h); // tira o granulado fino antes do realce
     p.sKey=sKey; p.lKey=null;
   }
-  const lKey=st.wl.w+'|'+st.wl.l+'|'+st.gamma;
+  const lKey=st.wl.w+'|'+st.wl.l+'|'+st.gamma+'|'+filt;
   if(lKey!==p.lKey){
     const W=st.wl.w, lo=st.wl.l-W/2, sc=1023/W;
     if(!LUTC.k||LUTC.k!==st.gamma){ LUTC.k=st.gamma; for(let i=0;i<1024;i++) LUTC.t[i]=Math.round(255*Math.pow(i/1023, st.gamma)); }
     const L=LUTC.t, GR=p.gray;
     for(let i=0;i<n;i++){ let gi=(Gb[i]-lo)*sc; gi=gi<0?0:(gi>1023?1023:gi|0); GR[i]=L[gi]; }
+    if(filt==='realce') clahe(GR, w, h);
     p.lKey=lKey;
   }
   // base -> pixels
@@ -799,7 +830,7 @@ function drawPane(p){
     pano:`curva ${fmt(st.curve.len,0)} mm · espessura ${st.panoSlab} mm`, cross:`posição ${fmt(st.crossIdx*v.p)} mm de ${fmt(st.curve.len,0)}`}[p.kind];
   const offTxt = p.crossOff ? ` ${p.crossOff>0?'+':''}${fmt(p.crossOff)} mm` : '';
   if(g.aligned){ p.title.textContent = p.kind==='cross' ? 'Transversal'+(offTxt||' · centro') : 'Tangencial ao implante';
-    const off=p.kind==='cross'?st.alignOff:st.alignOffT; p.info.textContent=`alinhado ao implante${off?` · ${off>0?'+':''}${fmt(off)} mm`:''}`+(p.zoom!==1?` · ${Math.round(p.zoom*100)}%`:''); return; }
+    const off=p.kind==='cross'?st.alignOff:st.alignOffT, rot=p.kind==='cross'?0:Math.round(st.alignRotT||0); p.info.textContent=`alinhado ao implante${rot?` · giro ${rot>0?'+':''}${rot}°`:''}${off?` · ${off>0?'+':''}${fmt(off)} mm`:''}`+(p.zoom!==1?` · ${Math.round(p.zoom*100)}%`:''); return; }
   if(p.kind==='cross') p.title.textContent='Transversal'+(offTxt||' · centro'); if(p.kind==='pano') p.title.textContent='Panorâmica';
   p.info.textContent = info + (p.zoom!==1?` · ${Math.round(p.zoom*100)}%`:'');
 }
@@ -826,7 +857,7 @@ function drawOverlays(p, ctx, X){
     st.curve.pts.forEach(pt=>dotAt(imgToCv(X,pt[0]/q,pt[1]/q),3.5,'#0B2D48','#EC4B8E'));
     // horizontal reference of current axial on nothing else
   }
-  if(p.kind==='pano'&&g.planar){ ctx.fillStyle='rgba(232,238,244,.75)'; ctx.font='600 12px Nunito Sans, Arial'; ctx.fillText('D',X.ox+6,X.oy+16); ctx.fillText('E',X.ox+g.w*X.s-14,X.oy+16); }
+  if(p.kind==='pano'&&g.planar&&Math.abs(st.alignRotT||0)<=30){ ctx.fillStyle='rgba(232,238,244,.75)'; ctx.font='600 12px Nunito Sans, Arial'; ctx.fillText('D',X.ox+6,X.oy+16); ctx.fillText('E',X.ox+g.w*X.s-14,X.oy+16); }
   if(p.kind==='pano'&&!g.planar){
     const xx=X.ox+(st.crossIdx+0.5)*X.s; line([xx,X.oy],[xx,X.oy+g.h*X.s],'#F59BC0',1.5);
     const zl=X.oy+((st.vol.Z-c[2])/q)*X.s; line([X.ox,zl],[X.ox+g.w*X.s,zl],'rgba(143,168,190,.4)',1,[3,5]);
@@ -903,7 +934,7 @@ function topSliderModel(){ if(!st.vol||st.mode!=='plan') return null; const F=al
   return {t:st.crossIdx/n, step:Math.max(1,Math.round(0.5/st.vol.p))/n, txt:`${fmt(st.crossIdx*st.vol.p)} mm da curva`, apply:t=>{ st.crossIdx=Math.round(t*n); }}; }
 function bottomSliderModel(){ if(!st.vol||st.mode!=='plan'||st.bottom==='3d') return null; const v=st.vol;
   if(st.bottom==='axial') return {t:1-st.cur[2]/v.Z, step:v.sz/v.Z, txt:`Z ${fmt(st.cur[2])} mm`, apply:t=>{ st.cur[2]=Math.round((1-t)*v.Z/v.sz)*v.sz; }};
-  if(alignFrame()) return {t:(st.alignOffT+15)/30, step:0.5/30, txt:`${st.alignOffT>0?'+':''}${fmt(st.alignOffT)} mm (V/L)`, apply:t=>{ st.alignOffT=Math.round((t*30-15)*2)/2; }};
+  if(alignFrame()) return {t:(st.alignRotT+90)/180, step:5/180, txt:`giro ${st.alignRotT>0?'+':''}${Math.round(st.alignRotT)}° em torno do implante`, apply:t=>{ st.alignRotT=clamp(Math.round(t*180-90),-90,90); }};
   if(!st.curve.S) return null;
   return {t:(st.panoOff+10)/20, step:0.5/20, txt:`${st.panoOff>0?'+':''}${fmt(st.panoOff)} mm (V/L)`, apply:t=>{ st.panoOff=Math.round((t*20-10)*2)/2; }}; }
 function initSliders(){
@@ -918,7 +949,7 @@ const HINTS={
   nav:'<b>Clique</b> posiciona os cortes · <b>arraste</b> move a imagem · <b>roda</b> troca o corte · <b>Ctrl+roda</b> zoom · <b>botão direito</b> brilho/contraste',
   curve:'No <b>axial</b>, clique ao longo do centro da arcada, da direita para a esquerda · <b>duplo clique</b> termina · nova curva apaga a anterior',
   nerve:'Na <b>panorâmica</b> ou na <b>transversal</b>, clique no centro do canal ponto a ponto · <b>duplo clique</b> ou Esc termina este canal',
-  implant:'Na <b>transversal</b> ou <b>panorâmica</b>, clique na crista: a plataforma fica nesse ponto e o ápice vai para o lado do osso (superior ou inferior) · arraste o corpo para mover · arraste a <b>bolinha do ápice</b> para inclinar em qualquer direção · com <b>Alinhar ao implante</b> ligado, transversal e tangencial passam pelo eixo dele · roda do mouse percorre os cortes ao redor do implante',
+  implant:'Na <b>transversal</b> ou <b>panorâmica</b>, clique na crista: a plataforma fica nesse ponto e o ápice vai para o lado do osso (superior ou inferior) · arraste o corpo para mover · arraste a <b>bolinha do ápice</b> para inclinar em qualquer direção · com <b>Alinhar ao implante</b> ligado, transversal e tangencial passam pelo eixo dele · roda do mouse nas transversais percorre os cortes; na <b>tangencial</b> a roda <b>gira o corte em torno do implante</b> (Shift+roda desloca para vestibular/lingual)',
   ruler:'Arraste em qualquer corte para medir em mm · clique numa medida existente com Shift para apagar'
 };
 function setTool(t){
@@ -935,7 +966,7 @@ function setMode(m){
 $$('[data-tool]').forEach(b=>b.addEventListener('click',()=>setTool(b.dataset.tool)));
 $('#mode-plan').addEventListener('click',()=>setMode('plan'));
 $$('[data-bottom]').forEach(b=>b.addEventListener('click',()=>setBottom(b.dataset.bottom)));
-$('#btn-align').addEventListener('click',()=>{ st.alignOn=!st.alignOn; $('#btn-align').classList.toggle('on',st.alignOn); st.alignOff=0; st.alignOffT=0; const im=selImp(); if(im) centerOn(im); else invalidate(); });
+$('#btn-align').addEventListener('click',()=>{ st.alignOn=!st.alignOn; $('#btn-align').classList.toggle('on',st.alignOn); st.alignOff=0; st.alignOffT=0; st.alignRotT=0; const im=selImp(); if(im) centerOn(im); else invalidate(); });
 $('#mode-mpr').addEventListener('click',()=>setMode('mpr'));
 
 function evtPos(p,e){ const r=p.cv.getBoundingClientRect(); return [e.clientX-r.left, e.clientY-r.top]; }
@@ -1016,7 +1047,7 @@ panes.forEach(p=>{
     if(p.kind==='axial') st.cur[2]=clamp(st.cur[2]-dir*v.sz,0,v.Z);
     else if(p.kind==='coronal') st.cur[1]=clamp(st.cur[1]+dir*v.sy,0,v.Y);
     else if(p.kind==='sagittal') st.cur[0]=clamp(st.cur[0]+dir*v.sx,0,v.X);
-    else if(p.geo&&p.geo.aligned){ if(p.kind==='cross') st.alignOff=clamp(st.alignOff+dir*0.5,-15,15); else st.alignOffT=clamp(st.alignOffT+dir*0.5,-15,15); }
+    else if(p.geo&&p.geo.aligned){ if(p.kind==='cross') st.alignOff=clamp(st.alignOff+dir*0.5,-15,15); else if(e.shiftKey) st.alignOffT=clamp(st.alignOffT+dir*0.5,-15,15); else st.alignRotT=clamp((st.alignRotT||0)+dir*5,-90,90); }
     else if(p.kind==='pano'||p.kind==='cross'){ const step=Math.max(1,Math.round(0.5/v.p)); st.crossIdx=clamp(st.crossIdx+dir*step,0,st.curve.S.length-1); }
     invalidate({side:false});
   },{passive:false});
@@ -1037,8 +1068,6 @@ function renderSide(){
   const v=st.vol;
   $('#exam-kv').innerHTML = v ? `<dt>Exame</dt><dd title="${esc(v.name)}">${esc(v.name)}</dd><dt>Matriz</dt><dd>${v.nx} × ${v.ny} × ${v.nz}</dd><dt>Voxel</dt><dd>${fmt(v.sx,2)} × ${fmt(v.sy,2)} × ${fmt(v.sz,2)} mm</dd><dt>Volume</dt><dd>${fmt(v.X,0)} × ${fmt(v.Y,0)} × ${fmt(v.Z,0)} mm</dd>` : `<dt>Exame</dt><dd>nenhum</dd>`;
   $('#wl-read').textContent = `J ${Math.round(st.wl.w)} · N ${Math.round(st.wl.l)}`;
-  $('#flt-none').classList.toggle('on',st.filter==='none'); $('#flt-hd').classList.toggle('on',st.filter!=='none');
-  $('#fk-wrap').hidden=st.filter==='none'; $('#r-fk').value=st.filterK; $('#v-fk').textContent=Math.round(st.filterK*100)+'%';
   $('#v-slab').textContent=st.panoSlab+' mm'; $('#r-slab').value=st.panoSlab;
   $('#v-off').textContent=fmt(st.panoOff)+' mm'; $('#r-off').value=st.panoOff;
   if(st.vol){ const t=$('#r-thr'); t.min=Math.floor(st.vol.vmin/10)*10; t.max=Math.ceil(st.vol.vmax/10)*10; }
@@ -1104,11 +1133,10 @@ function lTxt(l){ return l%1?String(l).replace('.',','):l+',0'; }
 function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function focusImplant(im){ centerOn(im); }
 function centerOn(im){ if(!im||!st.vol) return; if(st.curve.S){ st.crossIdx=nearestCurveIdx(im.c[0],im.c[1]); } st.cur=[clamp(im.c[0],0,st.vol.X),clamp(im.c[1],0,st.vol.Y),clamp(im.c[2],0,st.vol.Z)];
-  st.alignOff=0; st.alignOffT=0; st.centerId=im.id; panes.forEach(p=>p.needCenter=true); invalidate(); }
+  st.alignOff=0; st.alignOffT=0; if(st.centerId!==im.id) st.alignRotT=0; st.centerId=im.id; panes.forEach(p=>p.needCenter=true); invalidate(); }
 
-$('#flt-none').addEventListener('click',()=>{ st.filter='none'; invalidate({three:false}); });
-$('#flt-hd').addEventListener('click',()=>{ st.filter='realce'; invalidate({three:false}); });
-$('#r-fk').addEventListener('input',e=>{ st.filterK=+e.target.value; $('#v-fk').textContent=Math.round(st.filterK*100)+'%'; invalidate({three:false}); });
+$$('[data-flt]').forEach(b=>b.addEventListener('click',()=>{ st.filter=b.dataset.flt; $$('[data-flt]').forEach(x=>x.classList.toggle('on',x.dataset.flt===st.filter)); invalidate({three:false,side:false}); }));
+$$('[data-flt]').forEach(x=>x.classList.toggle('on',x.dataset.flt===st.filter));
 $('#r-slab').addEventListener('input',e=>{ kick();st.panoSlab=+e.target.value; invalidate({three:false});});
 $('#r-off').addEventListener('input',e=>{ kick();st.panoOff=+e.target.value; invalidate({three:false});});
 $('#r-thr').addEventListener('input',e=>{ kick();st.boneThr=+e.target.value; need.side=true; $('#v-thr').textContent=st.boneThr; invalidate({three:false}); mark3dStale();});
@@ -1394,9 +1422,9 @@ function snapshot(kind, crossIdx){
   return {url:cv.toDataURL('image/jpeg',0.9), w:cv.width, h:cv.height};
 }
 function snapshotImp(kind, im){
-  const keep={sel:st.sel, ao:st.alignOff, at:st.alignOffT, on:st.alignOn, mode:st.mode, cur:st.cur.slice(), fr:st.frozen};
-  const restore=()=>{ st.sel=keep.sel; st.alignOff=keep.ao; st.alignOffT=keep.at; st.alignOn=keep.on; st.mode=keep.mode; st.cur=keep.cur; st.frozen=keep.fr; };
-  st.sel=im.id; st.alignOff=0; st.alignOffT=0; st.alignOn=true; st.mode='plan'; st.frozen=null; st.cur=[im.c[0],im.c[1],im.c[2]];
+  const keep={rt:st.alignRotT, sel:st.sel, ao:st.alignOff, at:st.alignOffT, on:st.alignOn, mode:st.mode, cur:st.cur.slice(), fr:st.frozen};
+  const restore=()=>{ st.alignRotT=keep.rt; st.sel=keep.sel; st.alignOff=keep.ao; st.alignOffT=keep.at; st.alignOn=keep.on; st.mode=keep.mode; st.cur=keep.cur; st.frozen=keep.fr; };
+  st.sel=im.id; st.alignOff=0; st.alignOffT=0; st.alignRotT=0; st.alignOn=true; st.mode='plan'; st.frozen=null; st.cur=[im.c[0],im.c[1],im.c[2]];
   const fake={kind: kind==='tang'?'pano':(kind==='cross'?'cross':'axial'), off:document.createElement('canvas'), img:null, forceF:1, zoom:1};
   renderImage(fake); const g=fake.geo; if(!g||!g.planar){ restore(); return null; }
   const q=st.vol.p, ch=compGeo(im).h;
