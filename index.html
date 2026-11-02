@@ -153,6 +153,31 @@ select{background:var(--panel-2);border:1px solid var(--line);border-radius:6px;
   .side{width:auto;border-left:0;border-top:1px solid var(--line);padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px))}
   .sep{display:none}
 }
+/* ---- Etapa 1: posicionar o exame ---- */
+.prep{position:fixed;inset:0;z-index:40;background:var(--bg);display:flex;flex-direction:column}
+.prep-top{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line)}
+.steps{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted);font-weight:600}
+.steps .st{display:inline-flex;align-items:center;gap:7px}
+.steps .st b{width:22px;height:22px;border-radius:50%;display:inline-grid;place-items:center;border:1px solid var(--line);font-size:12px}
+.steps .st.on{color:var(--fg)} .steps .st.on b{background:var(--accent);border-color:var(--accent);color:#fff}
+.steps .arrow{opacity:.5}
+.prep-jaw{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:13px}
+.prep-jaw .seg button{min-width:96px}
+.prep-hint{padding:10px 16px;color:var(--muted);font-size:13px;line-height:1.5;border-bottom:1px solid var(--line)}
+.prep-hint b{color:var(--fg)}
+.prep-views{flex:1;min-height:0;display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:6px}
+.pv{position:relative;background:var(--view);border:1px solid var(--line);border-radius:6px;display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden}
+.pv-head{display:flex;justify-content:space-between;align-items:center;padding:7px 10px;border-bottom:1px solid var(--line);font-size:12px}
+.pv-head .t{font-family:var(--f-head);font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+.pv-head .a{font-family:var(--f-mono);color:var(--muted)}
+.pv canvas{flex:1;min-height:0;width:100%;display:block;cursor:grab;touch-action:none}
+.pv canvas.rot{cursor:grabbing}
+.pv-ctl{display:flex;gap:6px;justify-content:center;padding:7px;border-top:1px solid var(--line)}
+.prep-bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:10px 16px;background:var(--panel);border-top:1px solid var(--line)}
+.prep-bar .grow{flex:1}
+.prep-bar label{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.prep-bar .btn.primary[disabled]{opacity:.45;cursor:not-allowed}
+@media (max-width:900px){ .prep-views{grid-template-columns:1fr;overflow:auto} .pv{min-height:300px} }
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
 </style>
 <style>body{margin:0}img{max-width:100%}</style>
@@ -169,6 +194,7 @@ select{background:var(--panel-2);border:1px solid var(--line);border-radius:6px;
     <div class="group">
       <label class="btn primary" for="file-dir">Abrir tomografia</label>
       <input id="file-dir" type="file" webkitdirectory multiple hidden>
+      <button class="btn" id="btn-prep" type="button" disabled title="Voltar à etapa de posicionamento do exame">Posicionar exame</button>
     </div>
     <div class="sep"></div>
     <div class="seg" role="tablist" aria-label="Modo">
@@ -247,6 +273,24 @@ select{background:var(--panel-2);border:1px solid var(--line);border-radius:6px;
   </main>
 </div>
 
+<div class="prep" id="prep" hidden>
+  <div class="prep-top">
+    <div class="brand" id="prep-brand"></div>
+    <div class="sep"></div>
+    <div class="steps"><span class="st on"><b>1</b>Posicionar exame</span><span class="arrow">→</span><span class="st"><b>2</b>Planejamento</span></div>
+    <div class="prep-jaw"><span>Tipo de arcada</span><div class="seg" role="group" aria-label="Tipo de arcada"><button type="button" data-jaw="mand">Mandíbula</button><button type="button" data-jaw="max">Maxila</button></div></div>
+  </div>
+  <div class="prep-hint"><b>Arraste dentro de cada vista para girar a tomografia.</b> Deixe o plano oclusal paralelo à <b style="color:#4ADE80">linha verde</b> (vistas lateral e frontal) e a linha média sobre a <b style="color:#7FD3FF">linha azul</b> (vistas frontal e axial). Arraste as linhas para colocá-las sobre os dentes. A linha verde também define a altura do corte axial quando o planejamento abrir.</div>
+  <div class="prep-views" id="prep-views"></div>
+  <div class="prep-bar">
+    <button class="btn" id="prep-flip" type="button" title="Use quando o exame abrir de cabeça para baixo">Girar 180°</button>
+    <button class="btn" id="prep-reset" type="button">Redefinir</button>
+    <label for="prep-bri">Brilho <input type="range" id="prep-bri" min="-1" max="1" step="0.05" value="0"></label>
+    <span class="grow"></span>
+    <span class="pane-info" id="prep-msg"></span>
+    <button class="btn primary" id="prep-go" type="button" disabled>Continuar para o planejamento →</button>
+  </div>
+</div>
 <div class="overlay" id="overlay" hidden><div class="overlay-box"><strong id="ov-title">Carregando</strong><span id="ov-text"></span><button class="btn" id="ov-close" type="button" hidden>Fechar</button></div></div>
 <div class="report" id="report" hidden>
   <div class="rep-bar">
@@ -499,7 +543,7 @@ function assignKinds(){
     if(kinds[i]) p.title.textContent=titles[p.kind]; p.dirty=true; });
   pane3dEl.hidden = plan && st.bottom!=='3d';
   $('#bottom-seg').hidden=!plan; $$('[data-bottom]').forEach(b=>b.classList.toggle('on',b.dataset.bottom===st.bottom));
-  requestAnimationFrame(()=>{ size3D(); render3D(); });
+  requestAnimationFrame(()=>{ size3D(); if(!pane3dEl.hidden) sync3D(); render3D(); });
 }
 function setBottom(v){ st.bottom=v; assignKinds(); invalidate(); }
 
@@ -553,11 +597,13 @@ function planeNormal(p, P){
 function impEnds(im){ return {head:add(im.c,mul(im.a,im.L/2)), apex:sub(im.c,mul(im.a,im.L/2))}; }
 function boneDirAt(P){ let up=0, dn=0; for(let k=1;k<=12;k++){ up+=S(P[0],P[1],P[2]+k); dn+=S(P[0],P[1],P[2]-k); } return dn>=up ? 1 : -1; }
 function newImplant(head, d=4.0, L=10, dir){
-  const a=[0,0,dir!=null?dir:(st.vol?boneDirAt(head):1)]; const im={id:st.idSeq++, d, L, a, c:sub(head,mul(a,L/2)), surf:'Acqua', comp:{type:'none'}, region:''};
+  const a=[0,0,dir!=null?dir:(st.jaw==='max'?-1:(st.jaw==='mand'?1:(st.vol?boneDirAt(head):1)))]; const im={id:st.idSeq++, d, L, a, c:sub(head,mul(a,L/2)), surf:'Acqua', comp:{type:'none'}, region:''};
   st.implants.push(im); st.sel=im.id; return im;
 }
 function selImp(){ return st.implants.find(i=>i.id===st.sel)||null; }
 function evaluate(im){
+  if(EVM){ const k=EVM.get(im); if(k) return k; const r=evaluate0(im); EVM.set(im,r); return r; } return evaluate0(im); }
+function evaluate0(im){
   const {head,apex}=impEnds(im), r=im.d/2, out={};
   // nerve
   const segsN=[]; st.nerves.forEach(pl=>{ for(let i=0;i<pl.length-1;i++) segsN.push([pl[i],pl[i+1]]); });
@@ -616,57 +662,108 @@ function applyFilter(G,T,w,h,mode,k){
     for(let i=0;i<n;i++){ const d=G[i]-T2[i], ad=Math.abs(d); const g2=ad<thrN?(ad/thrN)*(ad/thrN):1; G[i]=G[i]+amt*d*g2; }
   }
 }
+/* Renderização em duas camadas: (1) base em cache — amostragem + filtro (chave: geometria, resolução, filtro)
+   e mapeamento de brilho/contraste (chave: W/L, gama); (2) sobreposição de implantes/canal só na área deles.
+   A resolução acompanha o tamanho real do quadro na tela; durante arrastes/roda usa meia resolução e sem filtro. */
+let OBJID=0; const oid=o=>o?(o.__id||(o.__id=++OBJID)):0;
+const f4=a=>a.map(x=>x.toFixed(3)).join(',');
+function wantF(p){ if(p.forceF) return p.forceF; const g=p.geo; if(!g) return 1; const r=p.cv.getBoundingClientRect(); const dpr=Math.min(window.devicePixelRatio||1,1.5);
+  const s=Math.min(r.width/g.w, r.height/g.h)*0.96*p.zoom*dpr; return Math.max(1,1/Math.max(s,1e-3)); }
 function renderImage(p){
   const g=p.geo=paneGeo(p);
   if(!st.vol||!g){ p.img=null; return; }
-  const {w,h}=g; if(p.off.width!==w||p.off.height!==h){ p.off.width=w; p.off.height=h; p.img=null; }
-  if(!p.img) p.img=p.off.getContext('2d').createImageData(w,h);
-  const n=w*h; if(!p.buf||p.buf.length!==n){ p.buf=new Float32Array(n); p.tmp=new Float32Array(n); }
-  const Gb=p.buf, D=p.img.data, q=st.vol.p, VZ=st.vol.Z, Sx=st.curve.S;
-  let slabN=0, slabStep=0;
-  if(!g.planar && st.panoSlab>0){ slabN=Math.min(8, Math.max(1, Math.round(st.panoSlab/2/q))); slabStep=st.panoSlab/2/slabN; }
-  let o=0;
-  for(let v=0;v<h;v++){ for(let u=0;u<w;u++,o++){
-      if(g.planar){ Gb[o]=S(g.O[0]+u*g.DU[0]+v*g.DV[0], g.O[1]+u*g.DU[1]+v*g.DV[1], g.O[2]+u*g.DU[2]+v*g.DV[2]); }
-      else { const c=Sx[u], x=c.x+c.nx*st.panoOff, y=c.y+c.ny*st.panoOff, z=VZ-v*q;
-        if(slabN){ let acc=0; for(let s=-slabN;s<=slabN;s++) acc+=S(x+c.nx*s*slabStep, y+c.ny*s*slabStep, z); Gb[o]=acc/(2*slabN+1); } else Gb[o]=S(x,y,z); } } }
-  applyFilter(Gb, p.tmp, w, h, st.filter, st.filterK);
-  const W=st.wl.w, lo=st.wl.l-W/2, sc=1023/W;
-  const LUT=new Uint8Array(1024); for(let i=0;i<1024;i++) LUT[i]=Math.round(255*Math.pow(i/1023, st.gamma));
-  const imps=st.implants.map(im=>{const e=impEnds(im); const ev=evaluate(im); const cp=compGeo(im); const ax=im.a, rf=Math.abs(ax[2])<0.9?[0,0,1]:[1,0,0], e1=norm(cross(ax,rf)), e2=cross(ax,e1); return {im,a:e.apex,h:e.head,r:im.d/2,L:im.L,cv:cp.h,cc:cp.col,e1,e2,sel:im.id===st.sel,bad:ev.status==='bad'};});
-  const segs=[]; st.nerves.forEach(pl=>{ for(let i=0;i<pl.length-1;i++) segs.push([pl[i],pl[i+1]]); });
-  const NR=st.nerveR, hasOv=imps.length||segs.length, edge=q*1.1;
-  o=0;
-  for(let v=0;v<h;v++){
-    for(let u=0;u<w;u++,o++){
-      let gi=(Gb[o]-lo)*sc; gi=gi<0?0:(gi>1023?1023:gi|0); const gv=LUT[gi];
-      let R=gv,G=gv,B=gv;
-      if(hasOv){
-        let x,y,z;
-        if(g.planar){ x=g.O[0]+u*g.DU[0]+v*g.DV[0]; y=g.O[1]+u*g.DU[1]+v*g.DV[1]; z=g.O[2]+u*g.DU[2]+v*g.DV[2]; }
-        else { const c=Sx[u]; x=c.x+c.nx*st.panoOff; y=c.y+c.ny*st.panoOff; z=VZ-v*q; }
-        for(let n2=0;n2<segs.length;n2++){ const A=segs[n2][0], Bp=segs[n2][1];
-          const dx=Bp[0]-A[0], dy=Bp[1]-A[1], dz=Bp[2]-A[2], l2=dx*dx+dy*dy+dz*dz; let t=l2?((x-A[0])*dx+(y-A[1])*dy+(z-A[2])*dz)/l2:0; t=t<0?0:(t>1?1:t);
-          const ex=A[0]+dx*t-x, ey=A[1]+dy*t-y, ez=A[2]+dz*t-z, d=Math.sqrt(ex*ex+ey*ey+ez*ez);
-          if(d<NR){ const al=d>NR-edge?0.95:0.38; R=R*(1-al)+COL.nerve[0]*al; G=G*(1-al)+COL.nerve[1]*al; B=B*(1-al)+COL.nerve[2]*al; break; } }
-        for(let n2=0;n2<imps.length;n2++){ const I=imps[n2], A=I.a, Bp=I.h;
-          const dx=Bp[0]-A[0], dy=Bp[1]-A[1], dz=Bp[2]-A[2], l2=dx*dx+dy*dy+dz*dz; const t=l2?((x-A[0])*dx+(y-A[1])*dy+(z-A[2])*dz)/l2:0;
-          const len=I.L, sAx=t*len; if(t<0||sAx>len+I.cv) continue;
-          const ex=A[0]+dx*t-x, ey=A[1]+dy*t-y, ez=A[2]+dz*t-z, d=Math.sqrt(ex*ex+ey*ey+ez*ez);
-          if(sAx>len){ const rr=compRad(I.im,sAx-len); if(d<rr){ const ol=d>rr-edge*1.2; const al=ol?1:0.78; const c2=ol?[140,105,25]:I.cc; R=R*(1-al)+c2[0]*al; G=G*(1-al)+c2[1]*al; B=B*(1-al)+c2[2]*al; break; } continue; }
-          const ro=hxOuter(len,I.r,sAx); if(d>=ro) continue;
-          const vx=x-(A[0]+dx*t), vy=y-(A[1]+dy*t), vz=z-(A[2]+dz*t); const th=Math.atan2(vx*I.e2[0]+vy*I.e2[1]+vz*I.e2[2], vx*I.e1[0]+vy*I.e1[1]+vz*I.e1[2]);
-          const rr=hxR(len,I.r,sAx,th); if(d>=rr) continue;
-          const dp=hxDepth(len,I.r,sAx), core=ro-dp, capE=Math.min(sAx,len-sAx);
-          const ol=d>rr-edge*1.2||capE<edge; const thr=d>core;
-          const oc=I.bad?COL.bad:(I.sel?[255,120,180]:COL.imp);
-          const c2=ol?oc:(thr?[228,232,238]:[196,203,212]); const al=ol?1:(thr?0.85:(I.sel?0.62:0.5));
-          R=R*(1-al)+c2[0]*al; G=G*(1-al)+c2[1]*al; B=B*(1-al)+c2[2]*al; break; }
-      }
-      const oo=o*4; D[oo]=R; D[oo+1]=G; D[oo+2]=B; D[oo+3]=255;
-    }
+  const fFull=wantF(p);
+  const gKey=[oid(st.vol), g.planar?f4([...g.O,...g.DU,...g.DV]):('c'+oid(st.curve.S)+':'+st.panoOff+':'+st.panoSlab), g.w, g.h, st.filter, st.filterK].join('|');
+  // mesma geometria já desenhada? só refaz se estava em qualidade reduzida e o usuário parou
+  const same = gKey===p.gKey && p.fFull && Math.abs(fFull/p.fFull-1)<0.2;
+  const fast = p.forceF ? false : (same ? (p.wasFast && st.fast) : st.fast);
+  const fF = same ? p.fFull : fFull;
+  const f = fast ? Math.max(1.5, fF*2) : fF;
+  p.gKey=gKey; p.fFull=fF; p.wasFast=fast; p.fUsed=f;
+  const w=Math.max(1,Math.ceil(g.w/f)), h=Math.max(1,Math.ceil(g.h/f)), n=w*h, half=(f-1)/2;
+  if(p.off.width!==w||p.off.height!==h){ p.off.width=w; p.off.height=h; p.img=null; }
+  if(!p.img){ p.img=p.off.getContext('2d').createImageData(w,h); p.d32=new Uint32Array(p.img.data.buffer); }
+  if(!p.buf||p.buf.length!==n){ p.buf=new Float32Array(n); p.tmp=new Float32Array(n); p.gray=new Uint8Array(n); p.sKey=p.lKey=null; }
+  const q=st.vol.p, VZ=st.vol.Z, Sx=st.curve.S;
+  const filt=fast?'none':st.filter;
+  const sKey=[oid(st.vol), g.planar?f4([...g.O,...g.DU,...g.DV]):('c'+oid(Sx)+':'+st.panoOff+':'+st.panoSlab+':'+fast), g.w, g.h, f.toFixed(3), filt, st.filterK].join('|');
+  const Gb=p.buf;
+  if(sKey!==p.sKey){
+    let slabN=0, slabStep=0;
+    if(!g.planar && st.panoSlab>0){ slabN=Math.min(fast?2:8, Math.max(1, Math.round(st.panoSlab/2/q))); slabStep=st.panoSlab/2/slabN; }
+    let o=0;
+    if(g.planar){ const O=g.O, DU=g.DU, DV=g.DV;
+      for(let V=0;V<h;V++){ const v=V*f+half; const bx=O[0]+v*DV[0], by=O[1]+v*DV[1], bz=O[2]+v*DV[2];
+        for(let U=0;U<w;U++,o++){ const u=U*f+half; Gb[o]=S(bx+u*DU[0], by+u*DU[1], bz+u*DU[2]); } } }
+    else { const nS=Sx.length-1;
+      for(let V=0;V<h;V++){ const z=VZ-(V*f+half)*q;
+        for(let U=0;U<w;U++,o++){ let iu=Math.round(U*f+half); if(iu>nS) iu=nS; const c=Sx[iu], x=c.x+c.nx*st.panoOff, y=c.y+c.ny*st.panoOff;
+          if(slabN){ let acc=0; for(let s=-slabN;s<=slabN;s++) acc+=S(x+c.nx*s*slabStep, y+c.ny*s*slabStep, z); Gb[o]=acc/(2*slabN+1); } else Gb[o]=S(x,y,z); } } }
+    applyFilter(Gb, p.tmp, w, h, filt, st.filterK);
+    p.sKey=sKey; p.lKey=null;
   }
+  const lKey=st.wl.w+'|'+st.wl.l+'|'+st.gamma;
+  if(lKey!==p.lKey){
+    const W=st.wl.w, lo=st.wl.l-W/2, sc=1023/W;
+    if(!LUTC.k||LUTC.k!==st.gamma){ LUTC.k=st.gamma; for(let i=0;i<1024;i++) LUTC.t[i]=Math.round(255*Math.pow(i/1023, st.gamma)); }
+    const L=LUTC.t, GR=p.gray;
+    for(let i=0;i<n;i++){ let gi=(Gb[i]-lo)*sc; gi=gi<0?0:(gi>1023?1023:gi|0); GR[i]=L[gi]; }
+    p.lKey=lKey;
+  }
+  // base -> pixels
+  const D32=p.d32, GR=p.gray; for(let i=0;i<n;i++){ const v=GR[i]; D32[i]=0xFF000000|(v<<16)|(v<<8)|v; }
+  composeOverlay(p, g, w, h, f, half);
   p.off.getContext('2d').putImageData(p.img,0,0);
+}
+const LUTC={k:null, t:new Uint8Array(1024)};
+// retângulo (em pixels do quadro) que contém os pontos; null se fora
+function bboxOf(p, g, pts, pad, f, half, w, h, maxD){
+  const q=st.vol.p; let u0=1e9,u1=-1e9,v0=1e9,v1=-1e9, anyNear=false;
+  for(const P of pts){ let u,v,d;
+    if(g.planar){ const rx=P[0]-g.O[0], ry=P[1]-g.O[1], rz=P[2]-g.O[2]; u=(rx*g.DU[0]+ry*g.DU[1]+rz*g.DU[2])/(q*q); v=(rx*g.DV[0]+ry*g.DV[1]+rz*g.DV[2])/(q*q); d=rx*g.nrm[0]+ry*g.nrm[1]+rz*g.nrm[2]; }
+    else { u=nearestCurveIdx(P[0],P[1]); v=(st.vol.Z-P[2])/q; d=0; }
+    if(Math.abs(d)<maxD) anyNear=true;
+    if(u<u0)u0=u; if(u>u1)u1=u; if(v<v0)v0=v; if(v>v1)v1=v; }
+  if(g.planar&&!anyNear){ // pode cruzar o plano mesmo com as pontas longe dele
+    let pos=false,neg=false; for(const P of pts){ const d=(P[0]-g.O[0])*g.nrm[0]+(P[1]-g.O[1])*g.nrm[1]+(P[2]-g.O[2])*g.nrm[2]; if(d>0)pos=true; else neg=true; } if(!(pos&&neg)) return null; }
+  const U0=Math.max(0,Math.floor((u0-pad-half)/f)), U1=Math.min(w-1,Math.ceil((u1+pad-half)/f)), V0=Math.max(0,Math.floor((v0-pad-half)/f)), V1=Math.min(h-1,Math.ceil((v1+pad-half)/f));
+  if(U0>U1||V0>V1) return null; return [U0,U1,V0,V1];
+}
+function composeOverlay(p, g, w, h, f, half){
+  const q=st.vol.p, VZ=st.vol.Z, Sx=st.curve.S, D=p.img.data, edge=q*1.1*Math.max(1,f*0.8), NR=st.nerveR;
+  const world=(U,V)=>{ const u=U*f+half, v=V*f+half;
+    if(g.planar) return [g.O[0]+u*g.DU[0]+v*g.DV[0], g.O[1]+u*g.DU[1]+v*g.DV[1], g.O[2]+u*g.DU[2]+v*g.DV[2]];
+    let iu=Math.round(u); if(iu>Sx.length-1) iu=Sx.length-1; const c=Sx[iu]; return [c.x+c.nx*st.panoOff, c.y+c.ny*st.panoOff, VZ-v*q]; };
+  const blend=(o,c,al)=>{ const k=o*4; D[k]=D[k]*(1-al)+c[0]*al; D[k+1]=D[k+1]*(1-al)+c[1]*al; D[k+2]=D[k+2]*(1-al)+c[2]*al; };
+  // canal (cada pixel recebe a cor do canal uma vez)
+  if(st.nerves.length){ if(!p.mark||p.mark.length!==w*h) p.mark=new Uint8Array(w*h); else p.mark.fill(0); const M=p.mark;
+  st.nerves.forEach(pl=>{ for(let i=0;i<pl.length-1;i++){ const A=pl[i], Bp=pl[i+1];
+      const bb=bboxOf(p,g,[A,Bp],NR/q+2,f,half,w,h,NR+0.5); if(!bb) continue;
+      const dx=Bp[0]-A[0], dy=Bp[1]-A[1], dz=Bp[2]-A[2], l2=dx*dx+dy*dy+dz*dz;
+      for(let V=bb[2];V<=bb[3];V++) for(let U=bb[0];U<=bb[1];U++){ const o=V*w+U; if(M[o]) continue; const P=world(U,V), x=P[0], y=P[1], z=P[2];
+        let t=l2?((x-A[0])*dx+(y-A[1])*dy+(z-A[2])*dz)/l2:0; t=t<0?0:(t>1?1:t);
+        const ex=A[0]+dx*t-x, ey=A[1]+dy*t-y, ez=A[2]+dz*t-z, d=Math.sqrt(ex*ex+ey*ey+ez*ez);
+        if(d<NR){ blend(o,COL.nerve,d>NR-edge?0.95:0.38); M[o]=1; } } } }); }
+  // implantes
+  st.implants.forEach(im=>{ const e=impEnds(im), cp=compGeo(im), A=e.apex, Bp=e.head, r=im.d/2, len=im.L;
+    const ax=im.a, rf=Math.abs(ax[2])<0.9?[0,0,1]:[1,0,0], e1=norm(cross(ax,rf)), e2=cross(ax,e1);
+    const top=add(Bp,mul(ax,cp.h)), R=Math.max(r, cp.h?compRad(im,0)+0.5:0, 3.5);
+    const pts=[]; for(const B of [A,Bp,top]) for(const s1 of [-1,1]) for(const s2 of [-1,1]) pts.push(add(B,add(mul(e1,s1*R),mul(e2,s2*R))));
+    const bb=bboxOf(p,g,pts,2,f,half,w,h,R+0.5); if(!bb) return;
+    const bad=evaluate(im).status==='bad', sel=im.id===st.sel, cc=cp.col, cv=cp.h;
+    const dx=Bp[0]-A[0], dy=Bp[1]-A[1], dz=Bp[2]-A[2], l2=dx*dx+dy*dy+dz*dz;
+    const oc=bad?COL.bad:(sel?[255,120,180]:COL.imp);
+    for(let V=bb[2];V<=bb[3];V++) for(let U=bb[0];U<=bb[1];U++){ const P=world(U,V), x=P[0], y=P[1], z=P[2];
+      const t=l2?((x-A[0])*dx+(y-A[1])*dy+(z-A[2])*dz)/l2:0; const sAx=t*len; if(t<0||sAx>len+cv) continue;
+      const ex=A[0]+dx*t-x, ey=A[1]+dy*t-y, ez=A[2]+dz*t-z, d=Math.sqrt(ex*ex+ey*ey+ez*ez); const o=V*w+U;
+      if(sAx>len){ const rr=compRad(im,sAx-len); if(d<rr){ const ol=d>rr-edge*1.2; blend(o, ol?[140,105,25]:cc, ol?1:0.78); } continue; }
+      const ro=hxOuter(len,r,sAx); if(d>=ro) continue;
+      const vx=-ex, vy=-ey, vz=-ez; const th=Math.atan2(vx*e2[0]+vy*e2[1]+vz*e2[2], vx*e1[0]+vy*e1[1]+vz*e1[2]);
+      const rr=hxR(len,r,sAx,th); if(d>=rr) continue;
+      const dp=hxDepth(len,r,sAx), core=ro-dp, capE=Math.min(sAx,len-sAx);
+      const ol=d>rr-edge*1.2||capE<edge, thr=d>core;
+      blend(o, ol?oc:(thr?[228,232,238]:[196,203,212]), ol?1:(thr?0.85:(sel?0.62:0.5))); }
+  });
 }
 function fitXform(p){
   const r=p.cv.getBoundingClientRect(), cw=r.width, ch=r.height, g=p.geo;
@@ -679,9 +776,10 @@ const cvToImg=(X,x,y)=>[(x-X.ox)/X.s, (y-X.oy)/X.s];
 
 function drawPane(p){
   if(p.el.hidden||!p.kind) return;
-  const ctx=p.ctx, dpr=window.devicePixelRatio||1, r=p.cv.getBoundingClientRect();
+  const ctx=p.ctx, dpr=Math.min(window.devicePixelRatio||1,2), r=p.cv.getBoundingClientRect();
   const W=Math.max(1,Math.round(r.width*dpr)), H=Math.max(1,Math.round(r.height*dpr));
   if(p.cv.width!==W||p.cv.height!==H){p.cv.width=W;p.cv.height=H;}
+  if(!p.dirty && st.vol && p.geo && p.fFull && Math.abs(wantF(p)/p.fFull-1)>0.2) p.dirty=true; // zoom mudou a resolução necessária
   if(p.dirty){ renderImage(p); p.dirty=false; }
   ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,r.width,r.height);
   const g=p.geo;
@@ -692,8 +790,8 @@ function drawPane(p){
   if(p.needCenter){ p.needCenter=false; const im=st.implants.find(i=>i.id===st.centerId);
     if(im&&p.zoom>1.05){ const t=toImg(p,im.c); if(t){ const c=imgToCv(X,t[0],t[1]); p.panX+=X.cw/2-c[0]; p.panY+=X.ch/2-c[1]; X=fitXform(p); } } }
   p.X=X;
-  ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
-  ctx.drawImage(p.off, X.ox, X.oy, g.w*X.s, g.h*X.s);
+  ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality=st.fast?'low':'high';
+  const fu=p.fUsed||1; ctx.drawImage(p.off, X.ox, X.oy, p.off.width*fu*X.s, p.off.height*fu*X.s);
   drawOverlays(p, ctx, X);
   // info line
   const v=st.vol, c=st.cur;
@@ -772,7 +870,18 @@ function invalidate(opts={}){
   if(!rafQ){ rafQ=true; requestAnimationFrame(flush); }
 }
 function redraw(p){ need.panes.add(p); if(!rafQ){rafQ=true;requestAnimationFrame(flush);} }
-function flush(){ rafQ=false; need.panes.forEach(drawPane); need.panes.clear(); updateSliders(); if(need.side){need.side=false; renderSide();} if(need.three){need.three=false; sync3D();} }
+let EVM=null, lastSide=0, last3=0, fastT=null;
+// modo rápido: enquanto o usuário arrasta/rola, desenha em meia resolução e sem filtro; ao parar, refaz em qualidade total
+function kick(){ st.fast=true; clearTimeout(fastT); fastT=setTimeout(()=>{ st.fast=false; invalidate(); },180); }
+function flush(){ rafQ=false; EVM=new Map();
+  try{
+    need.panes.forEach(drawPane); need.panes.clear(); updateSliders();
+    const now=performance.now();
+    if(need.side && (!st.fast || now-lastSide>160)){ need.side=false; lastSide=now; renderSide(); }
+    const vis3=!pane3dEl.hidden;
+    if(need.three && vis3 && (!st.fast || now-last3>90)){ need.three=false; last3=now; sync3D(); }
+  } finally { EVM=null; }
+}
 
 /* ---------------- Barras laterais de navegação ---------------- */
 function makeSlider(host, get, set){
@@ -780,10 +889,10 @@ function makeSlider(host, get, set){
   host.appendChild(el); const th=el.firstChild, tip=el.lastChild;
   const S_={el, get, set, th, tip};
   const fromY=cy=>{ const r=el.getBoundingClientRect(); return clamp((cy-r.top)/r.height,0,1); };
-  el.addEventListener('pointerdown',e=>{ e.stopPropagation(); el.setPointerCapture(e.pointerId); el.classList.add('drag'); set(fromY(e.clientY)); });
-  el.addEventListener('pointermove',e=>{ if(el.classList.contains('drag')) set(fromY(e.clientY)); });
+  el.addEventListener('pointerdown',e=>{ e.stopPropagation(); el.setPointerCapture(e.pointerId); el.classList.add('drag'); kick(); set(fromY(e.clientY)); });
+  el.addEventListener('pointermove',e=>{ if(el.classList.contains('drag')){ kick(); set(fromY(e.clientY)); } });
   const up=()=>el.classList.remove('drag'); el.addEventListener('pointerup',up); el.addEventListener('pointercancel',up);
-  el.addEventListener('wheel',e=>{ e.preventDefault(); e.stopPropagation(); const g=get(); if(!g) return; set(clamp(g.t+Math.sign(e.deltaY)*g.step,0,1)); },{passive:false});
+  el.addEventListener('wheel',e=>{ e.preventDefault(); e.stopPropagation(); const g=get(); if(!g) return; kick(); set(clamp(g.t+Math.sign(e.deltaY)*g.step,0,1)); },{passive:false});
   el.addEventListener('keydown',e=>{ const g=get(); if(!g) return; if(e.key==='ArrowDown'){ set(clamp(g.t+g.step,0,1)); e.preventDefault(); } if(e.key==='ArrowUp'){ set(clamp(g.t-g.step,0,1)); e.preventDefault(); } });
   return S_;
 }
@@ -878,6 +987,7 @@ panes.forEach(p=>{
   });
   cv.addEventListener('pointermove',e=>{
     if(!drag||drag.p!==p) return;
+    if(drag.type!=='pan'&&drag.type!=='measure') kick();
     if(drag.type==='wl'){ st.wl.w=Math.max(20,drag.w0+(e.clientX-drag.x)*8); st.wl.l=drag.l0+(e.clientY-drag.y)*6; invalidate({three:false}); return; }
     if(drag.type==='pan'){ const dx=e.clientX-drag.x, dy=e.clientY-drag.y; if(!drag.moved&&Math.hypot(dx,dy)<4) return; drag.moved=true; p.panX=drag.px+dx; p.panY=drag.py+dy; redraw(p); return; }
     const P=worldAtEvt(p,e); if(!P) return;
@@ -897,7 +1007,7 @@ panes.forEach(p=>{
   cv.addEventListener('dblclick',e=>{ if(st.tool==='curve'&&st.curve.drawing){ st.curve.drawing=false; if(st.curve.pts.length>2) st.curve.pts.pop(); buildCurve(); invalidate(); setBottom('pano'); flash('Curva pronta. Panorâmica e transversais atualizadas.'); }
     else if(st.tool==='nerve'&&st.activeNerve>=0){ const pl=st.nerves[st.activeNerve]; if(pl.length>1) pl.pop(); if(pl.length<2) st.nerves.splice(st.activeNerve,1); st.activeNerve=-1; invalidate(); } });
   cv.addEventListener('wheel',e=>{
-    if(!st.vol||!p.geo) return; e.preventDefault();
+    if(!st.vol||!p.geo) return; e.preventDefault(); kick();
     const dir=Math.sign(e.deltaY)||0;
     if(e.ctrlKey||e.metaKey){ const [x,y]=evtPos(p,e), X=p.X, f=dir<0?1.15:1/1.15; const nz=clamp(p.zoom*f,0.5,12); const k=nz/p.zoom;
       // keep point under cursor
@@ -999,9 +1109,9 @@ function centerOn(im){ if(!im||!st.vol) return; if(st.curve.S){ st.crossIdx=near
 $('#flt-none').addEventListener('click',()=>{ st.filter='none'; invalidate({three:false}); });
 $('#flt-hd').addEventListener('click',()=>{ st.filter='realce'; invalidate({three:false}); });
 $('#r-fk').addEventListener('input',e=>{ st.filterK=+e.target.value; $('#v-fk').textContent=Math.round(st.filterK*100)+'%'; invalidate({three:false}); });
-$('#r-slab').addEventListener('input',e=>{st.panoSlab=+e.target.value; invalidate({three:false});});
-$('#r-off').addEventListener('input',e=>{st.panoOff=+e.target.value; invalidate({three:false});});
-$('#r-thr').addEventListener('input',e=>{st.boneThr=+e.target.value; need.side=true; $('#v-thr').textContent=st.boneThr; invalidate({three:false}); mark3dStale();});
+$('#r-slab').addEventListener('input',e=>{ kick();st.panoSlab=+e.target.value; invalidate({three:false});});
+$('#r-off').addEventListener('input',e=>{ kick();st.panoOff=+e.target.value; invalidate({three:false});});
+$('#r-thr').addEventListener('input',e=>{ kick();st.boneThr=+e.target.value; need.side=true; $('#v-thr').textContent=st.boneThr; invalidate({three:false}); mark3dStale();});
 $('#r-thr').addEventListener('change',()=>build3D());
 $('#r-op').addEventListener('input',e=>{st.boneOpacity=+e.target.value; $('#v-op').textContent=Math.round(st.boneOpacity*100)+'%'; applyOpacity(); sync3D();});
 $('#btn-3d').addEventListener('click',()=>build3D());
@@ -1013,9 +1123,9 @@ $$('[data-wl]').forEach(b=>b.addEventListener('click',()=>{ const v=st.vol; if(!
   else { st.wl={w:st.wl.w*0.85, l:st.wl.l+st.wl.w*0.12}; st.gamma=Math.min(2.5,st.gamma+0.2); }
   invalidate({three:false}); }));
 function wlRange(){ const v=st.vol; const span=Math.max(100,(v?v.vmax-v.vmin:4000)); return {lmin:v?v.vmin:-1000, lmax:v?v.vmax:3000, wmin:Math.max(20,span*0.03), wmax:span*1.6}; }
-$('#r-bri').addEventListener('input',e=>{ const R=wlRange(), t=+e.target.value/1000; st.wl.l = R.lmax - t*(R.lmax-R.lmin); invalidate({three:false}); });
-$('#r-con').addEventListener('input',e=>{ const R=wlRange(), t=+e.target.value/1000; st.wl.w = R.wmax - t*(R.wmax-R.wmin); invalidate({three:false}); });
-$('#r-gam').addEventListener('input',e=>{ st.gamma=+e.target.value; invalidate({three:false}); });
+$('#r-bri').addEventListener('input',e=>{ kick(); const R=wlRange(), t=+e.target.value/1000; st.wl.l = R.lmax - t*(R.lmax-R.lmin); invalidate({three:false}); });
+$('#r-con').addEventListener('input',e=>{ kick(); const R=wlRange(), t=+e.target.value/1000; st.wl.w = R.wmax - t*(R.wmax-R.wmin); invalidate({three:false}); });
+$('#r-gam').addEventListener('input',e=>{ kick(); st.gamma=+e.target.value; invalidate({three:false}); });
 function autoWL(){ const v=st.vol; if(!v) return; const lo=v.p40, hi=v.hi; st.wl={w:Math.max(50,hi-lo), l:(hi+lo)/2}; st.gamma=1.2; }
 function otsuThr(v){ const d=v.data, n=d.length, step=Math.max(1,Math.floor(n/300000)), lo=v.p40, hi=v.vmax, B=256, hist=new Float64Array(B); let tot=0;
   for(let i=0;i<n;i+=step){ const x=d[i]; if(x<lo||x>hi) continue; hist[Math.min(B-1,Math.floor((x-lo)/(hi-lo)*B))]++; tot++; }
@@ -1032,7 +1142,7 @@ function init3D(){
   if(R3) return R3;
   if(!window.THREE){ $('#msg3d').hidden=false; $('#msg3d').textContent='Não foi possível carregar o 3D (verifique a internet na primeira abertura).'; return null; }
   const renderer=new THREE.WebGLRenderer({canvas:c3d, antialias:true});
-  renderer.setPixelRatio(window.devicePixelRatio||1); renderer.setClearColor(0x02080F,1);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.5)); renderer.setClearColor(0x02080F,1);
   const scene=new THREE.Scene(); const cam=new THREE.PerspectiveCamera(32,1,1,4000); cam.up.set(0,0,1);
   renderer.outputEncoding=THREE.sRGBEncoding;
   scene.add(new THREE.HemisphereLight(0xffffff,0x1a2430,0.32));
@@ -1089,7 +1199,7 @@ function build3D(){
   const v=st.vol; if(!v) return; if(!init3D()) return;
   $('#msg3d').hidden=false; $('#msg3d').textContent='Gerando reconstrução 3D…';
   setTimeout(()=>{
-    const f=Math.max(1,Math.ceil(Math.max(v.nx,v.ny,v.nz)/200)); const gx=Math.ceil(v.nx/f), gy=Math.ceil(v.ny/f), gz=Math.ceil(v.nz/f), gxy=gx*gy;
+    const LOWEND=(navigator.hardwareConcurrency||8)<=4||(navigator.deviceMemory||8)<=4; const f=Math.max(1,Math.ceil(Math.max(v.nx,v.ny,v.nz)/(LOWEND?150:200))); const gx=Math.ceil(v.nx/f), gy=Math.ceil(v.ny/f), gz=Math.ceil(v.nz/f), gxy=gx*gy;
     let g=new Float32Array(gx*gy*gz); const nxy=v.nx*v.ny;
     for(let k=0;k<gz;k++) for(let j=0;j<gy;j++) for(let i=0;i<gx;i++){ let acc=0,c=0;
       for(let kk=k*f;kk<Math.min(v.nz,k*f+f);kk++) for(let jj=j*f;jj<Math.min(v.ny,j*f+f);jj++) for(let ii=i*f;ii<Math.min(v.nx,i*f+f);ii++){ acc+=v.data[kk*nxy+jj*v.nx+ii]; c++; }
@@ -1225,11 +1335,10 @@ async function loadFiles(files){
     for(let k=0;k<nz;k++){ const s=same[k], off=k*nx*ny, L=Math.min(nx*ny,s.px.length); for(let i=0;i<L;i++) data[off+i]=clamp(Math.round(s.px[i]*s.slope+s.inter),-32768,32767); }
   }
   const vol={nx,ny,nz,sx,sy,sz,data,name: desc||name||'Tomografia', isDemo:false};
-  volStats(vol); setVolume(vol); st.isDemo=false;
-  autoWL(); st.boneThr=otsuThr(vol); st.panoSlab=10; st.panoOff=0;
-  st.mode='plan'; setMode('plan'); setTool('curve'); st.cur[2]=vol.Z*0.45;
-  hideOverlay(); if(compressed) flash(`${compressed} arquivos comprimidos foram ignorados.`);
-  if(R3) R3.placed=false; build3D(); invalidate();
+  vol.X=(nx-1)*sx; vol.Y=(ny-1)*sy; vol.Z=(nz-1)*sz;
+  volStats(vol); st.boneThr=otsuThr(vol);
+  hideOverlay(); startPrep(vol); $('#prep-msg').textContent = compressed ? `${compressed} arquivos comprimidos foram ignorados.` : '';
+  prepJawUI();
 }
 $('#file-dir').addEventListener('change',e=>{ loadFiles(Array.from(e.target.files)); e.target.value=''; });
 // drag & drop of folders
@@ -1288,7 +1397,7 @@ function snapshotImp(kind, im){
   const keep={sel:st.sel, ao:st.alignOff, at:st.alignOffT, on:st.alignOn, mode:st.mode, cur:st.cur.slice(), fr:st.frozen};
   const restore=()=>{ st.sel=keep.sel; st.alignOff=keep.ao; st.alignOffT=keep.at; st.alignOn=keep.on; st.mode=keep.mode; st.cur=keep.cur; st.frozen=keep.fr; };
   st.sel=im.id; st.alignOff=0; st.alignOffT=0; st.alignOn=true; st.mode='plan'; st.frozen=null; st.cur=[im.c[0],im.c[1],im.c[2]];
-  const fake={kind: kind==='tang'?'pano':(kind==='cross'?'cross':'axial'), off:document.createElement('canvas'), img:null};
+  const fake={kind: kind==='tang'?'pano':(kind==='cross'?'cross':'axial'), off:document.createElement('canvas'), img:null, forceF:1, zoom:1};
   renderImage(fake); const g=fake.geo; if(!g||!g.planar){ restore(); return null; }
   const q=st.vol.p, ch=compGeo(im).h;
   const hmm=Math.max(22, im.L+ch+8), wmm=hmm*0.8;
@@ -1316,7 +1425,7 @@ function collectReport(){
     const shots={ax:snapshotImp('axial',im), tg:snapshotImp('tang',im), tr:snapshotImp('cross',im)};
     return {n:i+1, im, ev, nS, iS, bS, shots, code:impCode(im)}; });
   return {date: now.toLocaleDateString('pt-BR')+' '+now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),
-    exam: v? v.name:'—', voxel: v? `${fmt(v.sx,2)} × ${fmt(v.sy,2)} × ${fmt(v.sz,2)} mm`:'—',
+    exam: v? v.name:'—', voxel: v? `${fmt(v.sx,2)} × ${fmt(v.sy,2)} × ${fmt(v.sz,2)} mm`:'—', arcada: st.jaw==='max'?'Maxila':(st.jaw==='mand'?'Mandíbula':'—'),
     three: snap3D(), rows,
     nerves: st.nerves.filter(n=>n.length>1).length, thr: st.boneThr};
 }
@@ -1339,6 +1448,7 @@ function openReport(){
       <label for="rep-prof">Responsável<input id="rep-prof" type="text" value="${esc(rep.prof)}" placeholder="Aluno ou profissional"></label>
       <label for="rep-regiao">Região<input id="rep-regiao" type="text" value="${esc(rep.regiao)}" placeholder="ex.: 36 e 37"></label>
       <label>Exame<span class="ro">${esc(d.exam)}</span></label>
+      <label>Arcada<span class="ro">${d.arcada}</span></label>
       <label>Voxel<span class="ro">${d.voxel}</span></label>
     </div></section>
     <section><h3>Implantes selecionados</h3><div class="rep-table-wrap"><table class="rep-table"><tr><th>Nº</th><th>Região</th><th>Neodent Helix GM (mm)</th><th>Superfície</th><th>Código</th><th>Componente</th><th>Incl.</th><th>Canal</th><th>Vizinho</th><th>Osso</th><th>Avaliação</th></tr>${tableRows}</table></div></section>
@@ -1374,9 +1484,9 @@ async function buildPDF(){
   doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.setTextColor(...navy); doc.text('Relatório de planejamento de implantes', PW-M, y+7, {align:'right'});
   doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(...grey); doc.text(d.date, PW-M, y+13, {align:'right'});
   y+=20; doc.setDrawColor(...mag); doc.setLineWidth(0.8); doc.line(M,y,PW-M,y); y+=7;
-  const info=[['Responsável',rep.prof||'—'],['Região',rep.regiao||'—'],['Exame',d.exam],['Voxel',d.voxel]];
+  const info=[['Responsável',rep.prof||'—'],['Região',rep.regiao||'—'],['Exame',d.exam],['Arcada',d.arcada],['Voxel',d.voxel]];
   doc.setFontSize(8); info.forEach((kv,i)=>{ const x=M+(i%2)*92, yy=y+Math.floor(i/2)*10; doc.setTextColor(...grey); doc.text(kv[0].toUpperCase(),x,yy); doc.setTextColor(...ink); doc.setFontSize(10); doc.text(String(kv[1]).slice(0,60),x,yy+4.5); doc.setFontSize(8); });
-  y+=22;
+  y+=10*Math.ceil(info.length/2)+2;
   const section=t=>{ need(10); doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(...mag); doc.text(t.toUpperCase(),M,y); doc.setFont('helvetica','normal'); y+=4; };
   section('Implantes selecionados');
   const cols=[['Nº',7],['Região',11],['Helix GM',23],['Superf.',15],['Código',15],['Componente',38],['Incl.',10],['Canal',16],['Vizinho',15],['Osso',11],['Aval.',19]];
@@ -1416,6 +1526,144 @@ $('#rep-pdf').addEventListener('click',async()=>{
   catch(e){ const c=e&&e.code; $('#rep-status').textContent = c==='declined'?'Download cancelado.' : (c==='rate_limited'?'Já existe uma confirmação aberta. Tente de novo em instantes.':'Não foi possível baixar o PDF aqui.'); }
   finally{ b.disabled=false; }
 });
+
+/* ---------------- Etapa 1: posicionar o exame ---------------- */
+// Vistas em projeção de intensidade máxima (parecem radiografias). Girar numa vista gira o volume em torno do centro;
+// ao continuar, o volume é reamostrado uma única vez na nova orientação e o planejamento abre já alinhado.
+const PV=[
+  {title:'Lateral', eu:[0,1,0], ev:[0,0,-1], lab:['A','P'], occ:true,  mid:false},
+  {title:'Frontal', eu:[1,0,0],  ev:[0,0,-1], lab:['D','E'], occ:true,  mid:true},
+  {title:'Axial',   eu:[1,0,0],  ev:[0,1,0],  lab:['D','E'], occ:false, mid:true}];
+const PR={R:[1,0,0,0,1,0,0,0,1], ang:[0,0,0], live:[0,0,0], N:180, small:null, src:null, mips:[], els:[], occZ:0, midX:0, bri:0, timer:null};
+const mI=()=>[1,0,0,0,1,0,0,0,1];
+const mMul=(A,B)=>{ const C=new Array(9); for(let r=0;r<3;r++) for(let c=0;c<3;c++) C[r*3+c]=A[r*3]*B[c]+A[r*3+1]*B[3+c]+A[r*3+2]*B[6+c]; return C; };
+const mT=A=>[A[0],A[3],A[6],A[1],A[4],A[7],A[2],A[5],A[8]];
+const mV=(A,v)=>[A[0]*v[0]+A[1]*v[1]+A[2]*v[2], A[3]*v[0]+A[4]*v[1]+A[5]*v[2], A[6]*v[0]+A[7]*v[1]+A[8]*v[2]];
+// rotação no plano da tela da vista (mesmo sentido do ctx.rotate do canvas)
+function planeRot(eu,ev,th){ const s=Math.sin(th), c1=Math.cos(th)-1, M=mI();
+  for(let r=0;r<3;r++) for(let c=0;c<3;c++) M[r*3+c]+= s*(ev[r]*eu[c]-eu[r]*ev[c]) + c1*(eu[r]*eu[c]+ev[r]*ev[c]); return M; }
+
+function prepSmall(v){ // volume reduzido por máximo em blocos (preserva dentes e corticais finas)
+  const f=Math.max(1,Math.ceil(Math.max(v.nx,v.ny,v.nz)/170)), gx=Math.ceil(v.nx/f), gy=Math.ceil(v.ny/f), gz=Math.ceil(v.nz/f), gxy=gx*gy;
+  const g=new Int16Array(gx*gy*gz).fill(-32768), d=v.data, nx=v.nx, ny=v.ny, nxy=nx*ny;
+  for(let k=0;k<v.nz;k++){ const kk=(k/f|0)*gxy, ko=k*nxy; for(let j=0;j<ny;j++){ const row=kk+(j/f|0)*gx, jo=ko+j*nx; for(let i=0;i<nx;i++){ const val=d[jo+i], q=row+(i/f|0); if(val>g[q]) g[q]=val; } } }
+  return {f,gx,gy,gz,gxy,g};
+}
+function prepMIP(k,N){
+  const V=PV[k], v=PR.src, sm=PR.small, c=PR.c, D=PR.D, m=D/N;
+  const ew=cross(V.eu,V.ev), Rt=mT(PR.R), su=mV(Rt,V.eu), sv=mV(Rt,V.ev), sw=mV(Rt,ew);
+  const f=sm.f, ax=1/(v.sx*f), ay=1/(v.sy*f), az=1/(v.sz*f), h=(f-1)/(2*f);
+  const ds=Math.min(v.sx,v.sy,v.sz)*f*0.9, ns=Math.ceil(D/ds), dfx=sw[0]*ds*ax, dfy=sw[1]*ds*ay, dfz=sw[2]*ds*az;
+  const gx=sm.gx, gy=sm.gy, gz=sm.gz, gxy=sm.gxy, G=sm.g, out=new Int16Array(N*N);
+  const EPS=1e-3, lim=[gx-EPS,gy-EPS,gz-EPS], dd=[dfx,dfy,dfz];
+  for(let py=0;py<N;py++){ const bv=(py+0.5-N/2)*m;
+    for(let px=0;px<N;px++){ const bu=(px+0.5-N/2)*m;
+      const X=c[0]+bu*su[0]+bv*sv[0]-D/2*sw[0], Y=c[1]+bu*su[1]+bv*sv[1]-D/2*sw[1], Z=c[2]+bu*su[2]+bv*sv[2]-D/2*sw[2];
+      const f0=[X*ax-h+0.5, Y*ay-h+0.5, Z*az-h+0.5];
+      // recorta o raio à caixa do volume (só percorre a parte que tem dado)
+      let s0=0, s1=ns-1;
+      for(let a=0;a<3;a++){ const d=dd[a], o=f0[a]; if(Math.abs(d)<1e-9){ if(o<0||o>lim[a]){ s0=1; s1=0; } continue; }
+        let ta=(0-o)/d, tb=(lim[a]-o)/d; if(ta>tb){ const t=ta; ta=tb; tb=t; } if(ta>s0) s0=Math.ceil(ta); if(tb<s1) s1=Math.floor(tb); }
+      let mx=-32768;
+      if(s0<=s1){ let fx=f0[0]+s0*dfx, fy=f0[1]+s0*dfy, fz=f0[2]+s0*dfz;
+        for(let s=s0;s<=s1;s++,fx+=dfx,fy+=dfy,fz+=dfz){ const val=G[(fz|0)*gxy+(fy|0)*gx+(fx|0)]; if(val>mx) mx=val; } }
+      out[py*N+px]=mx; } }
+  // tons de cinza: tecido mole escuro, osso cinza, dentes claros
+  const lo0=v.p40+(st.boneThr-v.p40)*0.55, hi0=v.vmax, sp=hi0-lo0, lo=lo0-PR.bri*sp*0.35, hi=hi0-PR.bri*sp*0.35;
+  const cv=PR.mips[k]||(PR.mips[k]=document.createElement('canvas')); cv.width=N; cv.height=N;
+  const ctx=cv.getContext('2d'), img=ctx.createImageData(N,N), D32=new Uint32Array(img.data.buffer), sc=1/Math.max(1,hi-lo);
+  for(let i=0;i<N*N;i++){ let t=(out[i]-lo)*sc; t=t<0?0:(t>1?1:t); const g8=Math.round(255*Math.pow(t,0.85)); D32[i]=0xFF000000|(g8<<16)|(g8<<8)|g8; }
+  ctx.putImageData(img,0,0);
+}
+// primeiro uma prévia rápida em baixa resolução, depois a imagem completa quando o usuário para
+function prepAll(){ const t0=performance.now(); for(let k=0;k<3;k++) prepMIP(k,100); prepDraw(); PR.ms=performance.now()-t0;
+  clearTimeout(PR.fine); PR.fine=setTimeout(()=>{ const t1=performance.now(); for(let k=0;k<3;k++) prepMIP(k,PR.N); prepDraw(); PR.msFine=performance.now()-t1; },220); }
+function prepFit(k){ const cv=PR.els[k].cv, r=cv.getBoundingClientRect(), s=Math.min(r.width,r.height)*0.98; return {cw:r.width, ch:r.height, s, ox:(r.width-s)/2, oy:(r.height-s)/2}; }
+// posição das linhas-guia em pixels da vista
+function guidePos(k,F){ const V=PV[k], N=PR.N, m=PR.D/N, out={};
+  if(V.occ){ const t=(PR.occZ-PR.c[2])*V.ev[2]; out.occ=F.oy+(t/m+N/2)/N*F.s; }
+  if(V.mid){ const t=(PR.midX-PR.c[0])*V.eu[0]; out.mid=F.ox+(t/m+N/2)/N*F.s; }
+  return out; }
+function prepDraw(){
+  if($('#prep').hidden) return;
+  for(let k=0;k<3;k++){ const E=PR.els[k], cv=E.cv, dpr=Math.min(window.devicePixelRatio||1,2), r=cv.getBoundingClientRect();
+    const W=Math.max(1,Math.round(r.width*dpr)), H=Math.max(1,Math.round(r.height*dpr)); if(cv.width!==W||cv.height!==H){ cv.width=W; cv.height=H; }
+    const ctx=cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,r.width,r.height);
+    const F=prepFit(k), mip=PR.mips[k];
+    if(mip){ ctx.save(); ctx.translate(F.ox+F.s/2,F.oy+F.s/2); ctx.rotate(PR.live[k]); ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high'; ctx.drawImage(mip,-F.s/2,-F.s/2,F.s,F.s); ctx.restore(); }
+    const gp=guidePos(k,F);
+    ctx.lineWidth=1.5;
+    if(gp.occ!=null){ ctx.strokeStyle='#4ADE80'; ctx.beginPath(); ctx.moveTo(F.ox,gp.occ); ctx.lineTo(F.ox+F.s,gp.occ); ctx.stroke(); ctx.fillStyle='#4ADE80'; ctx.font='600 11px Nunito Sans, Arial'; ctx.fillText('plano oclusal',F.ox+8,gp.occ-6); }
+    if(gp.mid!=null){ ctx.strokeStyle='#7FD3FF'; ctx.beginPath(); ctx.moveTo(gp.mid,F.oy); ctx.lineTo(gp.mid,F.oy+F.s); ctx.stroke(); ctx.fillStyle='#7FD3FF'; ctx.font='600 11px Nunito Sans, Arial'; ctx.fillText('linha média',gp.mid+6,F.oy+F.s-10); }
+    ctx.fillStyle='rgba(232,238,244,.85)'; ctx.font='700 13px Rubik, Arial'; ctx.fillText(PV[k].lab[0],F.ox+8,F.oy+18); ctx.fillText(PV[k].lab[1],F.ox+F.s-18,F.oy+18);
+    const a=(PR.ang[k]+PR.live[k])*180/Math.PI, an=((a+180)%360+360)%360-180; E.ang.textContent=`giro ${an>0?'+':''}${fmt(an,1)}°`;
+  }
+}
+function prepCommit(){ let ch=false; for(let k=0;k<3;k++){ const th=PR.live[k]; if(Math.abs(th)<1e-4) continue; PR.R=mMul(planeRot(PV[k].eu,PV[k].ev,th),PR.R); PR.ang[k]+=th; PR.live[k]=0; ch=true; } if(ch) prepAll(); }
+function prepNudge(k,deg,now){ PR.live[k]+=deg*Math.PI/180; prepDraw(); clearTimeout(PR.timer); if(now) prepCommit(); else PR.timer=setTimeout(prepCommit,160); }
+function buildPrepUI(){
+  $('#prep-brand').innerHTML=$('.top .brand').innerHTML;
+  const host=$('#prep-views');
+  PV.forEach((V,k)=>{ const el=document.createElement('div'); el.className='pv';
+    el.innerHTML=`<div class="pv-head"><span class="t">${V.title}</span><span class="a"></span></div><canvas></canvas><div class="pv-ctl"><button class="btn small" type="button" data-d="-1">⟲ 1°</button><button class="btn small" type="button" data-d="-0.2">⟲ 0,2°</button><button class="btn small" type="button" data-d="0.2">⟳ 0,2°</button><button class="btn small" type="button" data-d="1">⟳ 1°</button></div>`;
+    host.appendChild(el); const cv=el.querySelector('canvas'); PR.els[k]={el,cv,ang:el.querySelector('.a')};
+    el.querySelectorAll('[data-d]').forEach(b=>b.addEventListener('click',()=>prepNudge(k,+b.dataset.d,true)));
+    let dr=null;
+    const pos=e=>{ const r=cv.getBoundingClientRect(); return [e.clientX-r.left,e.clientY-r.top]; };
+    cv.addEventListener('pointerdown',e=>{ if(!PR.small) return; cv.setPointerCapture(e.pointerId); const [x,y]=pos(e), F=prepFit(k), gp=guidePos(k,F);
+      if(gp.occ!=null&&Math.abs(y-gp.occ)<9){ dr={type:'occ'}; return; }
+      if(gp.mid!=null&&Math.abs(x-gp.mid)<9){ dr={type:'mid'}; return; }
+      clearTimeout(PR.timer); dr={type:'rot', a0:Math.atan2(y-(F.oy+F.s/2), x-(F.ox+F.s/2)), base:PR.live[k]}; cv.classList.add('rot'); });
+    cv.addEventListener('pointermove',e=>{ if(!dr) return; const [x,y]=pos(e), F=prepFit(k), N=PR.N, m=PR.D/N, V=PV[k];
+      if(dr.type==='occ'){ const t=((y-F.oy)/F.s*N-N/2)*m; PR.occZ=clamp(PR.c[2]+t*V.ev[2],0,PR.src.Z); prepDraw(); return; }
+      if(dr.type==='mid'){ const t=((x-F.ox)/F.s*N-N/2)*m; PR.midX=clamp(PR.c[0]+t*V.eu[0],0,PR.src.X); prepDraw(); return; }
+      let d=Math.atan2(y-(F.oy+F.s/2), x-(F.ox+F.s/2))-dr.a0; if(d>Math.PI) d-=2*Math.PI; if(d<-Math.PI) d+=2*Math.PI; PR.live[k]=dr.base+d; prepDraw(); });
+    const up=()=>{ if(!dr) return; const t=dr.type; dr=null; cv.classList.remove('rot'); if(t==='rot') prepCommit(); };
+    cv.addEventListener('pointerup',up); cv.addEventListener('pointercancel',up);
+    cv.addEventListener('wheel',e=>{ e.preventDefault(); if(PR.small) prepNudge(k,(Math.sign(e.deltaY)||0)*0.5,false); },{passive:false});
+  });
+  $$('[data-jaw]').forEach(b=>b.addEventListener('click',()=>{ st.jaw=b.dataset.jaw; prepJawUI(); }));
+  $('#prep-flip').addEventListener('click',()=>{ PR.live[1]+=Math.PI; prepCommit(); });
+  $('#prep-reset').addEventListener('click',()=>{ PR.R=mI(); PR.ang=[0,0,0]; PR.live=[0,0,0]; PR.occZ=PR.c[2]; PR.midX=PR.c[0]; prepAll(); });
+  $('#prep-bri').addEventListener('input',e=>{ PR.bri=+e.target.value; clearTimeout(PR.timer); PR.timer=setTimeout(prepAll,60); });
+  $('#prep-go').addEventListener('click',applyPrep);
+  new ResizeObserver(()=>prepDraw()).observe(host);
+}
+function prepJawUI(){ $$('[data-jaw]').forEach(b=>b.classList.toggle('on',b.dataset.jaw===st.jaw)); $('#prep-go').disabled=!st.jaw;
+  if(!st.jaw) $('#prep-msg').textContent='Escolha mandíbula ou maxila para continuar.'; else if(/^Escolha/.test($('#prep-msg').textContent)) $('#prep-msg').textContent=''; }
+function startPrep(vol, keep){
+  if(!PR.els.length) buildPrepUI();
+  if(PR.src!==vol){ PR.src=vol; PR.small=null; }
+  PR.c=[vol.X/2,vol.Y/2,vol.Z/2]; PR.D=Math.max(vol.X,vol.Y,vol.Z)*1.05;
+  if(!keep){ PR.R=mI(); PR.ang=[0,0,0]; PR.occZ=PR.c[2]; PR.midX=PR.c[0]; st.jaw=null; }
+  PR.live=[0,0,0]; $('#prep').hidden=false; prepJawUI();
+  requestAnimationFrame(()=>{ if(!PR.small) PR.small=prepSmall(vol); prepAll(); });
+}
+async function resampleVol(v0,R){
+  const {nx,ny,nz,sx,sy,sz}=v0, nxy=nx*ny, out=new Int16Array(nxy*nz), S0=sampler(v0), c=PR.c, Rt=mT(R), fill=v0.vmin;
+  const di=mV(Rt,[sx,0,0]), mx=nx-0.5, my=ny-0.5, mz=nz-0.5, isx=1/sx, isy=1/sy, isz=1/sz;
+  for(let k=0;k<nz;k++){
+    if(k%6===0){ $('#ov-text').textContent=`${Math.round(k/nz*100)}%`; await new Promise(r=>setTimeout(r,0)); }
+    for(let j=0;j<ny;j++){ const b=mV(Rt,[-c[0], j*sy-c[1], k*sz-c[2]]); let x=c[0]+b[0], y=c[1]+b[1], z=c[2]+b[2]; let o=k*nxy+j*nx;
+      for(let i=0;i<nx;i++,o++,x+=di[0],y+=di[1],z+=di[2]){ const fx=x*isx, fy=y*isy, fz=z*isz;
+        out[o] = (fx<-0.5||fy<-0.5||fz<-0.5||fx>mx||fy>my||fz>mz) ? fill : Math.round(S0(x,y,z)); } } }
+  return {nx,ny,nz,sx,sy,sz,data:out,name:v0.name,isDemo:false};
+}
+async function applyPrep(){
+  if(!st.jaw||!PR.src) return; prepCommit();
+  const v0=PR.src, thr=st.boneThr, rotated=PR.ang.some(a=>Math.abs(a)>1e-4); let vol=v0;
+  if(rotated){ showOverlay('Posicionando a tomografia','0%'); await new Promise(r=>setTimeout(r,30)); vol=await resampleVol(v0,PR.R); volStats(vol); }
+  st.vol0=v0; setVolume(vol); st.isDemo=false; autoWL(); st.boneThr=rotated?otsuThr(vol):thr; st.panoSlab=10; st.panoOff=0;
+  $('#prep').hidden=true; hideOverlay();
+  st.mode='plan'; setMode('plan'); setTool('curve');
+  st.cur[2]=clamp(PR.occZ+(st.jaw==='max'?7:-7),0,vol.Z); st.cur[0]=clamp(PR.midX,0,vol.X);
+  $("#btn-prep").disabled=false;
+  flash('Exame posicionado. Desenhe a curva da arcada no axial.');
+  if(R3) R3.placed=false; build3D(); invalidate();
+}
+$('#btn-prep').addEventListener('click',()=>{ if(!st.vol0) return;
+  if((st.implants.length||st.curve.pts.length||st.nerves.length) && !confirm('Reposicionar o exame apaga a curva, os canais e os implantes marcados. Continuar?')) return;
+  const jaw=st.jaw; startPrep(st.vol0,true); st.jaw=jaw; prepJawUI(); });
 
 /* ---------------- Boot ---------------- */
 const ro=new ResizeObserver(()=>{ size3D(); render3D(); invalidate({img:false,side:false,three:false}); });
