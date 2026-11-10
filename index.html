@@ -1311,8 +1311,12 @@ function isoGeometry(level, maxDim, ops){ const v=st.vol;
     { let m=0,m2=0,n=0; const cw=Math.max(2,Math.round(gx*0.06));
       for(let k=0;k<gz;k+=2) for(let j=0;j<cw;j++) for(let i=0;i<cw;i++){ const val=g[k*gxy+j*gx+i]; m+=val; m2+=val*val; n++; }
       m/=n; const sd=Math.sqrt(Math.max(0,m2/n-m*m));
-      if(sd<25){ const cx=(gx-1)/2, cy=(gy-1)/2, R=Math.min(gx,gy)/2-2.5, R2=R*R;
-        for(let j=0;j<gy;j++) for(let i=0;i<gx;i++){ if((i-cx)*(i-cx)+(j-cy)*(j-cy)>R2) for(let k=0;k<gz;k++) g[k*gxy+j*gx+i]=AIR; } } }
+      // detecta, coluna a coluna, o que é preenchimento constante (serve para FOV redondo, oval ou cortado)
+      if(sd<25){ const tol=Math.max(40,sd*4), lim=gz*0.9, edge=new Uint8Array(gxy);
+        for(let j=0;j<gy;j++) for(let i=0;i<gx;i++){ let c=0; for(let k=0;k<gz;k++) if(Math.abs(g[k*gxy+j*gx+i]-m)<tol) c++; if(c>=lim) edge[j*gx+i]=1; }
+        // inclui 1 coluna de margem (mistura do preenchimento com o dado na borda do FOV)
+        for(let j=0;j<gy;j++) for(let i=0;i<gx;i++){ const o=j*gx+i; if(edge[o]===1) continue; if((i>0&&edge[o-1]===1)||(i<gx-1&&edge[o+1]===1)||(j>0&&edge[o-gx]===1)||(j<gy-1&&edge[o+gx]===1)) edge[o]=2; }
+        for(let o=0;o<gxy;o++) if(edge[o]) for(let k=0;k<gz;k++) g[k*gxy+o]=AIR; } }
     // suavização 3D (1-2-1) para tirar o ruído da superfície
     { const t=new Float32Array(g.length);
       const pass=(src,dst,st1,len,cnt)=>{ for(let idx=0;idx<src.length;idx++){ const p=Math.floor(idx/st1)%len; const a=p>0?src[idx-st1]:src[idx], c=p<len-1?src[idx+st1]:src[idx]; dst[idx]=(a+2*src[idx]+c)/4; } };
@@ -2045,7 +2049,7 @@ function ptUI(){ $$('[data-pt]').forEach(b=>b.classList.toggle('on',b.dataset.pt
   const d=PT.mesh?ptDims(PT.mesh.geometry):[0,0,0]; $('#pt-info').textContent = PT.ntri ? `${fmt(d[0],0)} × ${fmt(d[1],0)} × ${fmt(d[2],0)} mm · ${PT.ops.length} recorte(s)` : 'modelo vazio: desfaça o último recorte';
   $$('[data-ptq]').forEach(b=>b.classList.toggle('on',b.dataset.ptq===PT.quality)); }
 function openProtus(){ if(!st.vol){ flash('Abra uma tomografia primeiro.'); return; } if(!ptInit()){ flash('Este navegador não abriu o 3D (WebGL).'); return; }
-  $('#protus').hidden=false; const LOW=(navigator.hardwareConcurrency||8)<=4||(navigator.deviceMemory||8)<=4; PT.prevDim=LOW?150:190;
+  $('#protus').hidden=false; const LOW=(navigator.hardwareConcurrency||8)<=4||(navigator.deviceMemory||8)<=4; PT.prevDim=LOW?160:230;
   if(PT.vol!==st.vol){ PT.vol=st.vol; PT.ops=[]; PT.thr=Math.round(st.boneThr); PT.orb=null; }
   const r=$('#pt-thr'); r.min=Math.round(st.vol.p40); r.max=Math.round(st.vol.vmax); r.value=PT.thr; $('#pt-vthr').textContent=PT.thr;
   ptUI(); requestAnimationFrame(()=>ptRebuild(!PT.orb)); }
@@ -2064,7 +2068,7 @@ function zipOne(name,data){ const nb=new TextEncoder().encode(name), crc=crc32(d
   const cdOff=30+nb.length+sz, cdLen=46+nb.length; const eo=new DataView(new ArrayBuffer(22)); eo.setUint32(0,0x06054b50,true); eo.setUint16(8,1,true); eo.setUint16(10,1,true); eo.setUint32(12,cdLen,true); eo.setUint32(16,cdOff,true);
   return new Blob([lh.buffer,nb,data,cd.buffer,nb,eo.buffer],{type:'application/zip'}); }
 async function ptExport(){ if(PT.busy) return; if(!PT.ntri){ flash('O modelo está vazio.'); return; }
-  const dim=PT.quality==='alta'?300:220; showOverlay('EXACTPROTUS','Gerando o STL em '+(PT.quality==='alta'?'alta qualidade':'qualidade normal')+'…'); await new Promise(r=>setTimeout(r,40));
+  const dim=PT.quality==='alta'?400:300; showOverlay('EXACTPROTUS','Gerando o STL em '+(PT.quality==='alta'?'alta qualidade':'qualidade normal')+'…'); await new Promise(r=>setTimeout(r,40));
   let IG; try{ IG=isoGeometry(PT.thr, dim, PT.ops); }catch(e){ showOverlay('Não foi possível gerar o STL','Memória insuficiente neste computador. Tente a qualidade normal.',true); return; }
   const stl=stlBinary(IG.geo); IG.geo.dispose(); const base=('EXACTPROTUS '+(st.vol.name||'modelo')).replace(/[\\/:*?"<>|]+/g,' ').replace(/\s+/g,'_').slice(0,70);
   const mb=(stl.length/1048576).toFixed(1);
