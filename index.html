@@ -36,6 +36,11 @@ button{cursor:pointer}
 .group{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .sep{width:1px;height:28px;background:var(--line)}
 .protus-cta{display:flex;align-items:center;gap:10px}
+.pt-segrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px}
+.pt-segrow label{display:flex;align-items:center;gap:8px}
+.pt-segrow .seg button.on{background:var(--panel-2);color:var(--fg);box-shadow:inset 0 -2px 0 var(--accent)}
+.pt-segrow .seg button:not(.on){opacity:.5;text-decoration:line-through}
+.sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
 .protus-cta span{font-size:11px;line-height:1.35;color:var(--muted);max-width:240px}
 .btn.protus{background:#03528C;border-color:#5B9BD5;color:#fff;font-weight:700;letter-spacing:.02em;box-shadow:0 4px 14px rgba(3,82,140,.35)}
 .btn.protus:hover{background:#04619F}
@@ -358,6 +363,11 @@ select{background:var(--panel-2);border:1px solid var(--line);border-radius:6px;
   <div class="prep-top">
     <div class="steps"><span class="st on"><b>3D</b>EXACTPROTUS · prototipagem</span></div>
     <div class="prep-jaw"><label for="pt-thr" style="display:flex;align-items:center;gap:8px">Limiar do osso <input type="range" id="pt-thr" step="10"></label><span id="pt-vthr" class="pane-info" style="min-width:44px"></span></div>
+  </div>
+  <div class="prep-hint pt-segrow"><b>Segmentação automática</b>
+    <label for="pt-occ">Plano oclusal <input type="range" id="pt-occ"></label><span class="pane-info" id="pt-vocc"></span>
+    <button class="btn small protus" id="pt-seg" type="button" title="Coloque o plano verde entre os dentes superiores e inferiores e clique">Separar maxila e mandíbula</button>
+    <span id="pt-segk" hidden>Incluir no modelo: <span class="seg"><button type="button" data-sk="1"><i class="sw" style="background:#E8E1D1"></i>Maxila</button><button type="button" data-sk="2"><i class="sw" style="background:#8CC2EB"></i>Mandíbula</button></span></span>
   </div>
   <div class="prep-hint"><b>Gire o modelo até ver bem a parte a recortar e desenhe o laço em volta dela.</b> <b style="color:#FF5A5F">Apagar área</b> remove o que está dentro do laço, de frente até o fundo. <b style="color:#4ADE80">Manter só a área</b> remove todo o resto. O recorte é feito no volume, então o STL sai fechado, pronto para imprimir. Arraste com o botão direito ou Shift para mover, roda para aproximar.</div>
   <div class="reg-wrap"><canvas id="pt-cv"></canvas><canvas id="pt-lasso" style="position:absolute;inset:0;pointer-events:none"></canvas><div class="pane-msg" id="pt-msg" hidden></div></div>
@@ -1990,11 +2000,53 @@ $('#reg-cancel2').addEventListener('click',regClose);
 $('#reg-ok').addEventListener('click',()=>{ const sc=RG.sc; sc.T=RG.T; sc.rms=RG.rms; sc.visible=true; regClose(); renderScanList(); syncScans3D(); render3D(); invalidate({img:false,side:false});
   flash('Escaneamento alinhado. O contorno aparece nas transversais, na tangencial e no axial.'); });
 
+/* ---- Segmentação automática: maxila × mandíbula ----
+   1) osso = voxels acima do limiar; 2) mapa de distância até a borda do osso; 3) sementes: mandíbula abaixo do plano oclusal,
+   maxila acima dele (região dos dentes para frente, longe dos côndilos); 4) inundação a partir das sementes, da parte mais
+   espessa para a mais fina (watershed): as duas regiões se encontram nos pontos estreitos — contato dos dentes e ATM. */
+const SEGC={1:[0.91,0.88,0.82], 2:[0.55,0.76,0.92], 0:[0.45,0.47,0.5]};
+function segmentJaws(level, occZ){
+  const v=st.vol, f=Math.max(1,Math.ceil(Math.max(v.nx,v.ny,v.nz)/200)), gx=Math.ceil(v.nx/f), gy=Math.ceil(v.ny/f), gz=Math.ceil(v.nz/f), gxy=gx*gy, N=gxy*gz, nxy=v.nx*v.ny, h=(f-1)/2;
+  const mask=new Uint8Array(N);
+  for(let k=0;k<gz;k++) for(let j=0;j<gy;j++) for(let i=0;i<gx;i++){ let acc=0,c=0;
+    for(let kk=k*f;kk<Math.min(v.nz,k*f+f);kk++) for(let jj=j*f;jj<Math.min(v.ny,j*f+f);jj++){ const r=kk*nxy+jj*v.nx; for(let ii=i*f;ii<Math.min(v.nx,i*f+f);ii++){ acc+=v.data[r+ii]; c++; } }
+    if(acc/c>=level) mask[k*gxy+j*gx+i]=1; }
+  // distância chanfrada 3-4-5 (aprox. euclidiana ×3)
+  const INF=65000, D=new Uint16Array(N); for(let o=0;o<N;o++) D[o]=mask[o]?INF:0;
+  const nb=[]; for(let dz=-1;dz<=1;dz++) for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){ const s=Math.abs(dx)+Math.abs(dy)+Math.abs(dz); if(!s) continue; nb.push([dx,dy,dz,[0,3,4,5][s]]); }
+  const fw=nb.filter(([dx,dy,dz])=>dz<0||(dz===0&&(dy<0||(dy===0&&dx<0)))), bw=nb.filter(n=>!fw.includes(n));
+  const pass=(list,k0,k1,ks,j0,j1,js,i0,i1,is)=>{ for(let k=k0;k!==k1;k+=ks) for(let j=j0;j!==j1;j+=js) for(let i=i0;i!==i1;i+=is){ const o=k*gxy+j*gx+i; let d=D[o]; if(!d) continue;
+      for(const [dx,dy,dz,w] of list){ const x=i+dx, y=j+dy, z=k+dz; const q=(x<0||y<0||z<0||x>=gx||y>=gy||z>=gz)?0:D[z*gxy+y*gx+x]; if(q+w<d) d=q+w; } D[o]=d; } };
+  pass(fw,0,gz,1,0,gy,1,0,gx,1); pass(bw,gz-1,-1,-1,gy-1,-1,-1,gx-1,-1,-1);
+  // faixa dos dentes perto do plano oclusal → define frente/trás do arco
+  const kOcc=Math.round((occZ/v.sz-h)/f), band=Math.max(1,Math.round(4/(v.sz*f))); let ya=1e9, yb=-1;
+  for(let k=Math.max(0,kOcc-band);k<=Math.min(gz-1,kOcc+band);k++) for(let j=0;j<gy;j++) for(let i=0;i<gx;i++) if(mask[k*gxy+j*gx+i]){ if(j<ya) ya=j; if(j>yb) yb=j; }
+  if(yb<0){ ya=0; yb=gy-1; }
+  const off=Math.round(8/(v.sz*f)), yMax=ya+0.75*(yb-ya), yMand=yb+0.1*(yb-ya);
+  const lab=new Uint8Array(N), head=new Int32Array(65536).fill(-1), next=new Int32Array(N); let top=0, nSeed=[0,0,0];
+  const push=(o,l)=>{ next[o]=head[l]; head[l]=o; if(l>top) top=l; };
+  for(let k=0;k<gz;k++) for(let j=0;j<gy;j++) for(let i=0;i<gx;i++){ const o=k*gxy+j*gx+i; if(!mask[o]) continue;
+    if(k>kOcc+off && j<=yMax){ lab[o]=1; push(o,D[o]); nSeed[1]++; } else if(k<kOcc-off && j<=yMand){ lab[o]=2; push(o,D[o]); nSeed[2]++; } }
+  const n6=[1,-1,gx,-gx,gxy,-gxy];
+  for(let cur=top;cur>=0;){ const o=head[cur]; if(o<0){ cur--; continue; } head[cur]=next[o];
+    const i=o%gx, j=((o/gx)|0)%gy, k=(o/gxy)|0;
+    for(let q=0;q<6;q++){ if((q===0&&i===gx-1)||(q===1&&i===0)||(q===2&&j===gy-1)||(q===3&&j===0)||(q===4&&k===gz-1)||(q===5&&k===0)) continue; const n=o+n6[q];
+      if(!mask[n]||lab[n]) continue; lab[n]=lab[o]; const l=Math.min(D[n],cur); push(n,l); } }
+  let cnt=[0,0,0]; for(let o=0;o<N;o++) if(mask[o]) cnt[lab[o]]++;
+  return {lab,gx,gy,gz,f,cnt,nSeed}; }
+function segLabelAt(S0,x,y,z){ const v=st.vol, f=S0.f, h=(f-1)/2, i=Math.round((x/v.sx-h)/f), j=Math.round((y/v.sy-h)/f), k=Math.round((z/v.sz-h)/f);
+  let best=0; for(let r=0;r<=2&&!best;r++) for(let dz=-r;dz<=r&&!best;dz++) for(let dy=-r;dy<=r&&!best;dy++) for(let dx=-r;dx<=r;dx++){ const a=i+dx,b=j+dy,c=k+dz; if(a<0||b<0||c<0||a>=S0.gx||b>=S0.gy||c>=S0.gz) continue; const l=S0.lab[c*S0.gx*S0.gy+b*S0.gx+a]; if(l){ best=l; break; } }
+  return best; }
+
 /* ---------------- EXACTPROTUS · prototipagem ---------------- */
 // Segmenta a tomografia (limiar do osso), recorta a região de interesse com laço e gera STL fechado para impressão.
 // Os recortes são aplicados no volume (antes de gerar a malha), por isso o STL sai sempre fechado (sem furos).
 function applyCutOps(g,gx,gy,gz,f,level,ops){ const v=st.vol, gxy=gx*gy, h=(f-1)/2;
   for(const op of ops){
+    if(op.type==='seg'){ const S0=op.S;
+      for(let k=0;k<gz;k++){ const z=(k*f+h)*v.sz; for(let j=0;j<gy;j++){ const y=(j*f+h)*v.sy, row=k*gxy+j*gx;
+        for(let i=0;i<gx;i++){ const o=row+i; if(g[o]<level) continue; const l=segLabelAt(S0,(i*f+h)*v.sx,y,z); if(!op.keep[l]) g[o]=AIR; } } }
+      continue; }
     if(op.type==='lasso'){ const R=256, bm=rasterPoly(op.poly,R), M=op.M; const keepInside=op.mode==='keep';
       for(let k=0;k<gz;k++){ const z=(k*f+h)*v.sz; for(let j=0;j<gy;j++){ const y=(j*f+h)*v.sy, row=k*gxy+j*gx;
         for(let i=0;i<gx;i++){ const o=row+i; if(g[o]<level) continue; const x=(i*f+h)*v.sx;
@@ -2040,17 +2092,31 @@ function ptAddLasso(L){ const cv=$('#pt-cv'), r=cv.getBoundingClientRect(); PT.c
   const poly=L.map(([x,y])=>[x/r.width*2-1, 1-y/r.height*2]); PT.ops.push({type:'lasso', mode:PT.tool, poly, M}); ptRebuild(); }
 function ptDims(geo){ geo.computeBoundingBox(); const b=geo.boundingBox; return [b.max.x-b.min.x, b.max.y-b.min.y, b.max.z-b.min.z]; }
 function ptRebuild(fit){ PT.busy=true; $('#pt-msg').hidden=false; $('#pt-msg').textContent='Gerando o modelo…';
-  setTimeout(()=>{ const IG=isoGeometry(PT.thr, PT.prevDim, PT.ops); if(PT.mesh){ PT.scene.remove(PT.mesh); PT.mesh.geometry.dispose(); }
-    PT.mesh=new THREE.Mesh(IG.geo, new THREE.MeshStandardMaterial({color:0xE9E2D0, roughness:0.5, side:THREE.DoubleSide})); PT.scene.add(PT.mesh); PT.ntri=IG.ntri;
+  setTimeout(()=>{ const IG=isoGeometry(PT.thr, PT.prevDim, ptOps()); if(PT.mesh){ PT.scene.remove(PT.mesh); PT.mesh.geometry.dispose(); }
+    const colored=!!PT.seg; if(colored) ptColor(IG.geo);
+    PT.mesh=new THREE.Mesh(IG.geo, new THREE.MeshStandardMaterial({color:colored?0xffffff:0xE9E2D0, vertexColors:colored, roughness:0.5, side:THREE.DoubleSide})); PT.scene.add(PT.mesh); PT.ntri=IG.ntri; ptPlane();
     if(fit||!PT.orb){ IG.geo.computeBoundingSphere(); const bs=IG.geo.boundingSphere; PT.orb={t:bs.center.clone(), rad:Math.max(30,bs.radius*3.4), th:0, ph:0.15}; }
     ptCam(); ptRender(); PT.busy=false; $('#pt-msg').hidden=true; ptUI(); },30); }
+function ptOps(){ const k=PT.segKeep; return (PT.seg && !(k[1]&&k[2])) ? [{type:'seg', S:PT.seg, keep:{0:false,1:k[1],2:k[2]}}, ...PT.ops] : PT.ops; }
+function ptColor(geo){ const P=geo.attributes.position.array, N=geo.attributes.normal.array, n=P.length/3, C=new Float32Array(n*3);
+  for(let i=0;i<n;i++){ let l=segLabelAt(PT.seg,P[3*i],P[3*i+1],P[3*i+2]); const c=SEGC[l]; C[3*i]=c[0]; C[3*i+1]=c[1]; C[3*i+2]=c[2]; }
+  geo.setAttribute('color',new THREE.BufferAttribute(C,3)); }
+function ptPlane(){ if(!PT.plane){ PT.plane=new THREE.Mesh(new THREE.PlaneGeometry(1,1), new THREE.MeshBasicMaterial({color:0x4ADE80, transparent:true, opacity:0.22, side:THREE.DoubleSide, depthWrite:false})); PT.scene.add(PT.plane); }
+  const v=st.vol; PT.plane.scale.set(v.X*1.05, v.Y*1.05, 1); PT.plane.position.set(v.X/2, v.Y/2, PT.occZ); PT.plane.visible=!!PT.showPlane; }
+function ptSegUI(){ const has=!!PT.seg; $('#pt-segk').hidden=!has; $$('[data-sk]').forEach(b=>b.classList.toggle('on',!!PT.segKeep[b.dataset.sk]));
+  $('#pt-vocc').textContent=fmt(PT.occZ,1)+' mm'; $('#pt-seg').textContent=has?'Separar de novo':'Separar maxila e mandíbula'; }
+async function ptSegment(){ if(PT.busy) return; PT.busy=true; $('#pt-msg').hidden=false; $('#pt-msg').textContent='Separando maxila e mandíbula…'; await new Promise(r=>setTimeout(r,30));
+  const S0=segmentJaws(PT.thr, PT.occZ); PT.busy=false; PT.showPlane=false;
+  if(!S0.cnt[1]||!S0.cnt[2]){ PT.seg=null; ptSegUI(); $('#pt-msg').hidden=true; flash(!S0.nSeed[1]?'Não achei maxila acima do plano verde. Ajuste a altura do plano oclusal.':'Não achei mandíbula abaixo do plano verde. Ajuste a altura do plano oclusal.'); PT.showPlane=true; ptPlane(); ptRender(); return; }
+  PT.seg=S0; PT.segKeep={1:true,2:true}; ptSegUI(); ptRebuild(); }
 function ptUI(){ $$('[data-pt]').forEach(b=>b.classList.toggle('on',b.dataset.pt===PT.tool)); $('#pt-undo').disabled=!PT.ops.length; $('#pt-reset').disabled=!PT.ops.length;
   $('#pt-cv').style.cursor=PT.tool==='rot'?'grab':'crosshair';
   const d=PT.mesh?ptDims(PT.mesh.geometry):[0,0,0]; $('#pt-info').textContent = PT.ntri ? `${fmt(d[0],0)} × ${fmt(d[1],0)} × ${fmt(d[2],0)} mm · ${PT.ops.length} recorte(s)` : 'modelo vazio: desfaça o último recorte';
   $$('[data-ptq]').forEach(b=>b.classList.toggle('on',b.dataset.ptq===PT.quality)); }
 function openProtus(){ if(!st.vol){ flash('Abra uma tomografia primeiro.'); return; } if(!ptInit()){ flash('Este navegador não abriu o 3D (WebGL).'); return; }
   $('#protus').hidden=false; const LOW=(navigator.hardwareConcurrency||8)<=4||(navigator.deviceMemory||8)<=4; PT.prevDim=LOW?160:230;
-  if(PT.vol!==st.vol){ PT.vol=st.vol; PT.ops=[]; PT.thr=Math.round(st.boneThr); PT.orb=null; }
+  if(PT.vol!==st.vol){ PT.vol=st.vol; PT.ops=[]; PT.thr=Math.round(st.boneThr); PT.orb=null; PT.seg=null; PT.segKeep={1:true,2:true}; PT.occZ=(typeof PR!=='undefined'&&PR.occZ!=null)?clamp(PR.occZ,0,st.vol.Z):st.vol.Z/2; PT.showPlane=true; }
+  const ro_=$('#pt-occ'); ro_.min=0; ro_.max=st.vol.Z.toFixed(1); ro_.step=0.5; ro_.value=PT.occZ; ptSegUI();
   const r=$('#pt-thr'); r.min=Math.round(st.vol.p40); r.max=Math.round(st.vol.vmax); r.value=PT.thr; $('#pt-vthr').textContent=PT.thr;
   ptUI(); requestAnimationFrame(()=>ptRebuild(!PT.orb)); }
 // ---- STL binário + zip (o download do artefato aceita .zip)
@@ -2069,7 +2135,7 @@ function zipOne(name,data){ const nb=new TextEncoder().encode(name), crc=crc32(d
   return new Blob([lh.buffer,nb,data,cd.buffer,nb,eo.buffer],{type:'application/zip'}); }
 async function ptExport(){ if(PT.busy) return; if(!PT.ntri){ flash('O modelo está vazio.'); return; }
   const dim=PT.quality==='alta'?400:300; showOverlay('EXACTPROTUS','Gerando o STL em '+(PT.quality==='alta'?'alta qualidade':'qualidade normal')+'…'); await new Promise(r=>setTimeout(r,40));
-  let IG; try{ IG=isoGeometry(PT.thr, dim, PT.ops); }catch(e){ showOverlay('Não foi possível gerar o STL','Memória insuficiente neste computador. Tente a qualidade normal.',true); return; }
+  let IG; try{ IG=isoGeometry(PT.thr, dim, ptOps()); }catch(e){ showOverlay('Não foi possível gerar o STL','Memória insuficiente neste computador. Tente a qualidade normal.',true); return; }
   const stl=stlBinary(IG.geo); IG.geo.dispose(); const base=('EXACTPROTUS '+(st.vol.name||'modelo')).replace(/[\\/:*?"<>|]+/g,' ').replace(/\s+/g,'_').slice(0,70);
   const mb=(stl.length/1048576).toFixed(1);
   try{
@@ -2082,7 +2148,10 @@ $$('[data-ptq]').forEach(b=>b.addEventListener('click',()=>{ PT.quality=b.datase
 $('#pt-undo').addEventListener('click',()=>{ if(PT.busy||!PT.ops.length) return; PT.ops.pop(); ptRebuild(); });
 $('#pt-reset').addEventListener('click',()=>{ if(PT.busy) return; PT.ops=[]; ptRebuild(); });
 $('#pt-thr').addEventListener('input',e=>{ $('#pt-vthr').textContent=e.target.value; });
-$('#pt-thr').addEventListener('change',e=>{ PT.thr=+e.target.value; ptRebuild(); });
+$('#pt-thr').addEventListener('change',e=>{ PT.thr=+e.target.value; if(PT.seg){ PT.seg=null; ptSegUI(); flash('Limiar mudou: separe maxila e mandíbula de novo.'); } ptRebuild(); });
+$('#pt-occ').addEventListener('input',e=>{ PT.occZ=+e.target.value; PT.showPlane=true; ptSegUI(); ptPlane(); ptRender(); });
+$('#pt-seg').addEventListener('click',ptSegment);
+$$('[data-sk]').forEach(b=>b.addEventListener('click',()=>{ const k=b.dataset.sk; PT.segKeep[k]=!PT.segKeep[k]; if(!PT.segKeep[1]&&!PT.segKeep[2]) PT.segKeep[k]=true; ptSegUI(); ptRebuild(); }));
 $('#pt-view').addEventListener('change',e=>{ const v=e.target.value; if(!PT.orb) return; const A={frente:[0,0.1],tras:[Math.PI,0.1],dir:[-Math.PI/2,0.1],esq:[Math.PI/2,0.1],cima:[0,1.45],baixo:[0,-1.45]}[v]; if(A){ PT.orb.th=A[0]; PT.orb.ph=A[1]; ptCam(); ptRender(); } e.target.value=''; });
 $('#pt-go').addEventListener('click',ptExport);
 $('#pt-close').addEventListener('click',()=>{ $('#protus').hidden=true; });
