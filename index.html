@@ -36,6 +36,11 @@ button{cursor:pointer}
 .group{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .sep{width:1px;height:28px;background:var(--line)}
 .protus-cta{display:flex;align-items:center;gap:10px}
+.pt-thrbox{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:13px;flex:1 1 520px;max-width:760px;min-width:0}
+.pt-thrbox label{white-space:nowrap}
+.pt-thrbox input{flex:1;min-width:160px}
+.pt-thrbox #pt-vthr{min-width:48px;text-align:right}
+.pt-thrbox .btn.small{padding:4px 10px}
 .pt-segrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px}
 .pt-segrow label{display:flex;align-items:center;gap:8px}
 .pt-segrow .seg button.on{background:var(--panel-2);color:var(--fg);box-shadow:inset 0 -2px 0 var(--accent)}
@@ -291,7 +296,7 @@ select{background:var(--panel-2);border:1px solid var(--line);border-radius:6px;
       </section>
 
       <section>
-        <div class="row" style="justify-content:space-between;align-items:baseline"><h2>Implantes</h2><div class="row"><button class="btn small" id="btn-new-imp" type="button">+ Novo implante</button><button class="btn small primary" id="btn-report" type="button">Gerar relatório</button></div></div>
+        <div class="row" style="justify-content:space-between;align-items:baseline"><h2>Implantes</h2><div class="row"><select id="new-line" class="btn small" title="Linha do próximo implante" aria-label="Linha do próximo implante"><option value="GM">Helix GM</option><option value="HS">Helix Short</option></select><button class="btn small" id="btn-new-imp" type="button">+ Novo implante</button><button class="btn small primary" id="btn-report" type="button">Gerar relatório</button></div></div>
         <div class="imp-list" id="imp-list"></div>
         <div id="imp-editor"></div>
       </section>
@@ -312,7 +317,7 @@ select{background:var(--panel-2);border:1px solid var(--line);border-radius:6px;
       </section>
 
 
-      <p class="note"><b style="color:var(--fg)">Biblioteca de implantes: Neodent Helix GM</b> (somente Helix), superfícies Acqua e NeoPoros, Ø 3,5 a 7,0 mm. Componentes GM: parafuso de cobertura (0 e 2 mm) e cicatrizador (Ø 3,3 a 6,5 mm, transmucoso 0,8 a 5,5 mm). Use a chave Neo digital (104.060) e não exceda 10 N.cm na inserção.<br><br><b style="color:var(--fg)">Ferramenta de ensino e simulação, para referência.</b> Nenhuma medida, distância ou avaliação deste programa é absoluta: todas servem como orientação didática e precisam ser confirmadas pelo profissional no exame original e no software de planejamento. Não substitui o planejamento clínico nem gera guia cirúrgica. Os resultados dependem da qualidade e calibração do exame e da marcação do canal. Os arquivos ficam só neste computador e nada é enviado.</p>
+      <p class="note"><b style="color:var(--fg)">Biblioteca de implantes: Neodent Helix GM e Helix Short.</b> Helix GM: superfícies Acqua e NeoPoros, Ø 3,5 a 7,0 mm. Helix Short (curto, Acqua): Ø 3,75 a 7,0 mm, comprimentos 4,0 a 8,5 mm + colar liso de 1,8 mm, plataforma HS Ø 4,8; parafuso de cobertura 117.025 e cicatrizadores HS 106.270 e 106.273. Componentes GM: parafuso de cobertura (0 e 2 mm) e cicatrizador (Ø 3,3 a 6,5 mm, transmucoso 0,8 a 5,5 mm). Use a chave Neo digital (104.060) e não exceda 10 N.cm na inserção.<br><br><b style="color:var(--fg)">Ferramenta de ensino e simulação, para referência.</b> Nenhuma medida, distância ou avaliação deste programa é absoluta: todas servem como orientação didática e precisam ser confirmadas pelo profissional no exame original e no software de planejamento. Não substitui o planejamento clínico nem gera guia cirúrgica. Os resultados dependem da qualidade e calibração do exame e da marcação do canal. Os arquivos ficam só neste computador e nada é enviado.</p>
     </aside>
   </main>
 </div>
@@ -362,7 +367,7 @@ select{background:var(--panel-2);border:1px solid var(--line);border-radius:6px;
 <div class="prep" id="protus" hidden>
   <div class="prep-top">
     <div class="steps"><span class="st on"><b>3D</b>EXACTPROTUS · prototipagem</span></div>
-    <div class="prep-jaw"><label for="pt-thr" style="display:flex;align-items:center;gap:8px">Limiar do osso <input type="range" id="pt-thr" step="10"></label><span id="pt-vthr" class="pane-info" style="min-width:44px"></span></div>
+    <div class="pt-thrbox"><label for="pt-thr">Limiar do osso</label><button class="btn small" type="button" id="pt-thr-m" title="Diminuir 10">−</button><input type="range" id="pt-thr" step="5"><button class="btn small" type="button" id="pt-thr-p" title="Aumentar 10">+</button><span id="pt-vthr" class="pane-info"></span><button class="btn small" type="button" id="pt-thr-a" title="Volta ao limiar calculado para este exame">Automático</button></div>
   </div>
   <div class="prep-hint pt-segrow"><b>Segmentação automática</b>
     <label for="pt-occ">Plano oclusal <input type="range" id="pt-occ"></label><span class="pane-info" id="pt-vocc"></span>
@@ -445,47 +450,76 @@ const CAT={
   '6':   {8:'1009',10:'1010',11.5:'1011',13:'1012'},
   '7':   {8:'1059',10:'1060',11.5:'1061',13:'1062'}
 };
-const DIAMS=[3.5,3.75,4.0,4.3,5.0,6.0,7.0];
-const lensFor=d=>Object.keys(CAT[String(d)]).map(Number).sort((a,b)=>a-b);
-const impCode=im=>{ const c=CAT[String(im.d)]&&CAT[String(im.d)][im.L]; return c ? (im.surf==='NeoPoros'?'109.':'140.')+c : '—'; };
+// Catálogo Neodent Helix Short (somente Acqua 140.xxxx). Comprimento nominal = parte com rosca (dentro do osso);
+// acima dela fica o colar transmucoso liso de 1,8 mm, que termina na plataforma HS de Ø 4,8 mm (igual para todos os diâmetros)
+const CAT_HS={
+  '3.75':{4:'1082',5.5:'1083',7:'1084',8.5:'1085'},
+  '4':   {4:'1066',5.5:'1067',7:'1068',8.5:'1069'},
+  '5':   {4:'1070',5.5:'1071',7:'1072',8.5:'1073'},
+  '6':   {4:'1074',5.5:'1075',7:'1076',8.5:'1077'},
+  '7':   {4:'1078',5.5:'1079',7:'1080',8.5:'1081'}
+};
+const HS_C=1.8, HS_PLAT=2.4;
+const DIAMS=[3.5,3.75,4.0,4.3,5.0,6.0,7.0], DIAMS_HS=[3.75,4.0,5.0,6.0,7.0];
+const isHS=im=>im&&im.line==='HS';
+const diamsFor=line=>line==='HS'?DIAMS_HS:DIAMS;
+const lensFor=(d,line)=>Object.keys((line==='HS'?CAT_HS:CAT)[String(d)]||{}).map(Number).sort((a,b)=>a-b);
+const nomL=im=>isHS(im)?im.Ln:im.L;
+const impCode=im=>{ if(isHS(im)){ const c=CAT_HS[String(im.d)]&&CAT_HS[String(im.d)][im.Ln]; return c?'140.'+c:'—'; } const c=CAT[String(im.d)]&&CAT[String(im.d)][im.L]; return c ? (im.surf==='NeoPoros'?'109.':'140.')+c : '—'; };
+const impLine=im=>isHS(im)?'Helix Short':'Helix GM';
+const impName=im=>`${impLine(im)} Ø ${dTxt(im.d)} × ${lTxt(nomL(im))}`;
 // Componentes GM: parafuso de cobertura e cicatrizador (código, altura transmucosa)
 const COVER={0:'117.021',2:'117.022'};
 const HEAL={'3.3':{0.8:'207',1.5:'208',2.5:'209',3.5:'210',4.5:'211',5.5:'212'},'4.5':{0.8:'213',1.5:'214',2.5:'215',3.5:'216',4.5:'217',5.5:'218'},
   '5.5':{1.5:'250',2.5:'251',3.5:'252',4.5:'253'},'6.5':{1.5:'254',2.5:'255',3.5:'256',4.5:'257'}};
 const HEAL_D=[3.3,4.5,5.5,6.5];
+// Componentes HS: parafuso de cobertura 117.025; cicatrizadores HS Ø 4,8 (106.270: 1,5/2,5 · 106.273: 1,5 a 5,5)
+const COVER_HS='117.025', HEAL_HS={'106.270':[1.5,2.5],'106.273':[1.5,2.5,3.5,4.5,5.5]};
 const healH=d=>Object.keys(HEAL[String(d)]).map(Number).sort((a,b)=>a-b);
 const hTxt=h=>String(h).replace('.',',');
-function compCode(im){ const c=im.comp||{type:'none'}; if(c.type==='cover') return COVER[c.h]||''; if(c.type==='heal'){ const k=HEAL[String(c.d)]&&HEAL[String(c.d)][c.h]; return k?'106.'+k:''; } return ''; }
+function compCode(im){ const c=im.comp||{type:'none'}; if(isHS(im)){ if(c.type==='cover') return COVER_HS; if(c.type==='heal') return c.model||''; return ''; } if(c.type==='cover') return COVER[c.h]||''; if(c.type==='heal'){ const k=HEAL[String(c.d)]&&HEAL[String(c.d)][c.h]; return k?'106.'+k:''; } return ''; }
 function compTxt(im){ const c=im.comp||{type:'none'}, code=compCode(im);
+  if(isHS(im)&&c.type==='cover') return 'Cob. HS'+(code?' · '+code:'');
   if(c.type==='cover') return 'Cob. '+hTxt(c.h)+' mm'+(code?' · '+code:'');
-  if(c.type==='heal') return 'Cic. Ø'+hTxt(c.d)+' × '+hTxt(c.h)+(code?' · '+code:'');
+  if(c.type==='heal') return 'Cic. '+(isHS(im)?'HS ':'')+'Ø'+hTxt(c.d)+' × '+hTxt(c.h)+(code?' · '+code:'');
   return '—'; }
 function compParts(im){ const c=im.comp||{type:'none'}, code=compCode(im)||'—';
-  if(c.type==='cover') return ['Cobertura', hTxt(c.h)+' mm', code];
-  if(c.type==='heal') return ['Cicatrizador', 'Ø'+hTxt(c.d)+' × '+hTxt(c.h)+' mm', code];
+  if(c.type==='cover') return [isHS(im)?'Cobertura HS':'Cobertura', isHS(im)?'—':hTxt(c.h)+' mm', code];
+  if(c.type==='heal') return [isHS(im)?'Cicatrizador HS':'Cicatrizador', 'Ø'+hTxt(c.d)+' × '+hTxt(c.h)+' mm', code];
   return ['—','—','—']; }
 function compRad(im,z){ // z = altura acima da plataforma
   const c=im.comp||{type:'none'}, g=compGeo(im), h=g.h; if(z<0||z>h) return 0; let r;
-  if(c.type==='heal'){ const f=Math.min(1,z/(0.55*h)), e=1-Math.pow(1-f,2); r=g.rb+(g.rt-g.rb)*e; }
+  if(c.type==='heal'&&g.hs){ r=g.rt; if(z>0.35&&z<h-0.3){ const q=(z-0.35)%1.0; if(q<0.18) r-=0.16*Math.sin(q/0.18*Math.PI); } } // anéis do cicatrizador HS
+  else if(c.type==='heal'){ const f=Math.min(1,z/(0.55*h)), e=1-Math.pow(1-f,2); r=g.rb+(g.rt-g.rb)*e; }
   else r=g.rt;
   const rnd=Math.min(0.3,h*0.3); if(z>h-rnd){ const q=(z-(h-rnd))/rnd; r-=rnd*(1-Math.sqrt(Math.max(0,1-q*q))); }
   return r; }
 function compGeo(im){ const c=im.comp||{type:'none'};
+  if(isHS(im)&&c.type==='cover') return {h:0.4, rb:HS_PLAT*0.98, rt:HS_PLAT*0.98, col:[218,180,70], hex:0xD8B04A, hs:true};
+  if(isHS(im)&&c.type==='heal') return {h:c.h, rb:HS_PLAT, rt:HS_PLAT, col:[226,190,84], hex:0xE2BE54, hs:true};
   if(c.type==='cover') return {h:c.h>0?c.h:0.5, rb:Math.min(1.65,im.d/2), rt:Math.min(1.65,im.d/2), col:[218,180,70], hex:0xD8B04A};
   if(c.type==='heal') return {h:c.h, rb:Math.min(1.75,c.d/2), rt:c.d/2, col:[226,190,84], hex:0xE2BE54};
   return {h:0, rb:0, rt:0, col:[0,0,0], hex:0}; }
 const PITCH=0.9;
 // Forma Helix GM (ilustrativa): corpo cônico no terço apical, rosca dupla, câmaras apicais, colar liso
 const HX={pitch:1.1, lead:2.2, collar:0.7};
-function hxOuter(L,R,s){ const u=s/L; let r = u>0.5 ? R : R*(0.6+0.4*Math.pow(u/0.5,0.85)); if(s<0.6) r*=0.5+0.5*Math.sqrt(Math.max(0,s/0.6)); if(s>L-HX.collar) r=R*0.985; return r; }
-function hxDepth(L,R,s){ if(s<0.25||s>L-HX.collar) return 0; const u=s/L; let dp=Math.min(0.42,R*0.17)*(1.15-0.35*u); if(s<0.8) dp*= (s-0.25)/0.55; if(s>L-HX.collar-0.4) dp*=(L-HX.collar-s)/0.4; return Math.max(0,dp); }
+function hxOuter(L,R,s,hs){ if(hs) return hsOuter(L,R,s); const u=s/L; let r = u>0.5 ? R : R*(0.6+0.4*Math.pow(u/0.5,0.85)); if(s<0.6) r*=0.5+0.5*Math.sqrt(Math.max(0,s/0.6)); if(s>L-HX.collar) r=R*0.985; return r; }
+function hxDepth(L,R,s,hs){ if(hs) return hsDepth(L,R,s); if(s<0.25||s>L-HX.collar) return 0; const u=s/L; let dp=Math.min(0.42,R*0.17)*(1.15-0.35*u); if(s<0.8) dp*= (s-0.25)/0.55; if(s>L-HX.collar-0.4) dp*=(L-HX.collar-s)/0.4; return Math.max(0,dp); }
 function hxTooth(ph){ return ph<0.32 ? ph/0.32 : (ph<0.5 ? 1 : (ph<0.86 ? 1-(ph-0.5)/0.36 : 0)); }
-function hxR(L,R,s,th){ const out=hxOuter(L,R,s), dp=hxDepth(L,R,s); if(dp<=0) return out;
+function hxR(L,R,s,th,hs){ if(hs) return hsR(L,R,s,th); const out=hxOuter(L,R,s), dp=hxDepth(L,R,s); if(dp<=0) return out;
   let ph=(s + th/(2*Math.PI)*HX.lead)/HX.pitch; ph-=Math.floor(ph);
   let r=out-dp+dp*hxTooth(ph);
   if(s<0.38*L){ for(let k=0;k<3;k++){ let dt=th-k*2*Math.PI/3; dt=Math.atan2(Math.sin(dt),Math.cos(dt)); if(Math.abs(dt)<0.26){ r-= dp*1.25*(1-s/(0.38*L))*(1-Math.abs(dt)/0.26); } } }
   return r; }
-function impRadius(im,t){ return hxOuter(im.L, im.d/2, t*im.L); }
+// Forma Helix Short (ilustrativa): corpo com rosca trapezoidal única, ápice cônico, colar liso de 1,8 mm abrindo/fechando até a plataforma Ø 4,8
+const HSG={pitch:1.0};
+function hsOuter(L,R,s){ const Le=L-HS_C;
+  if(s>Le){ const z=(s-Le)/HS_C, rb=R*0.97; return rb+(HS_PLAT-rb)*Math.pow(z,1.4); }
+  const u=s/Le, ua=Math.min(0.5,2.6/Le); let r = u>ua ? R : R*(0.6+0.4*(u/ua)); if(s<0.45) r*=0.7+0.3*Math.sqrt(Math.max(0,s/0.45)); if(s>Le-0.35) r=Math.min(r,R*0.985); return r; } // ápice cônico (~2,6 mm ou metade do corpo)
+function hsDepth(L,R,s){ const Le=L-HS_C; if(s<0.3||s>Le-0.3) return 0; let dp=Math.min(0.55,R*0.2); if(s<0.8) dp*=(s-0.3)/0.5; if(s>Le-0.7) dp*=(Le-0.3-s)/0.4; return Math.max(0,dp); }
+function hsTooth(ph){ return ph<0.22 ? ph/0.22 : (ph<0.5 ? 1 : (ph<0.72 ? 1-(ph-0.5)/0.22 : 0)); } // trapezoidal: crista larga e plana
+function hsR(L,R,s,th){ const out=hsOuter(L,R,s), dp=hsDepth(L,R,s); if(dp<=0) return out; let ph=(s+th/(2*Math.PI)*HSG.pitch)/HSG.pitch; ph-=Math.floor(ph); return out-dp+dp*hsTooth(ph); }
+function impRadius(im,t){ return hxOuter(im.L, im.d/2, t*im.L, isHS(im)); }
 
 /* ---------------- Volume sampling ---------------- */
 function sampler(vol){
@@ -690,7 +724,10 @@ function planeNormal(p, P){
 function impEnds(im){ return {head:add(im.c,mul(im.a,im.L/2)), apex:sub(im.c,mul(im.a,im.L/2))}; }
 function boneDirAt(P){ let up=0, dn=0; for(let k=1;k<=12;k++){ up+=S(P[0],P[1],P[2]+k); dn+=S(P[0],P[1],P[2]-k); } return dn>=up ? 1 : -1; }
 function newImplant(head, d=4.0, L=10, dir){
-  const a=[0,0,dir!=null?dir:(st.jaw==='max'?-1:(st.jaw==='mand'?1:(st.vol?boneDirAt(head):1)))]; const im={id:st.idSeq++, d, L, a, c:sub(head,mul(a,L/2)), surf:'Acqua', comp:{type:'none'}, region:''};
+  const a=[0,0,dir!=null?dir:(st.jaw==='max'?-1:(st.jaw==='mand'?1:(st.vol?boneDirAt(head):1)))];
+  if((st.implLine||'GM')==='HS'){ const Ln=7, Lt=Ln+HS_C, plat=add(head,mul(a,HS_C)); // ponto clicado = topo da parte com rosca; o colar fica acima da crista
+    const im={id:st.idSeq++, line:'HS', d:4.0, Ln, L:Lt, a, c:sub(plat,mul(a,Lt/2)), surf:'Acqua', comp:{type:'none'}, region:''}; st.implants.push(im); st.sel=im.id; return im; }
+  const im={id:st.idSeq++, line:'GM', d, L, a, c:sub(head,mul(a,L/2)), surf:'Acqua', comp:{type:'none'}, region:''};
   st.implants.push(im); st.sel=im.id; return im;
 }
 function selImp(){ return st.implants.find(i=>i.id===st.sel)||null; }
@@ -714,7 +751,8 @@ function evaluate0(im){
   // bone coverage
   const ax=im.a, ref=Math.abs(ax[2])<0.9?[0,0,1]:[1,0,0], e1=norm(cross(ax,ref)), e2=cross(ax,e1);
   let inb=0,tot=0, apexIn=0, apexTot=0;
-  for(let si=0;si<=12;si++){ const t=si/12; const base=add(apex,mul(sub(head,apex),t)), rr=impRadius(im,t);
+  const tMax=isHS(im)?(im.L-HS_C)/im.L:1; // HS: o colar liso fica fora do osso por desenho
+  for(let si=0;si<=12;si++){ const t=si/12*tMax; const base=add(apex,mul(sub(head,apex),t)), rr=impRadius(im,t);
     for(let ai=0;ai<16;ai++){ const th=ai/16*Math.PI*2; const P=add(base,add(mul(e1,Math.cos(th)*rr),mul(e2,Math.sin(th)*rr)));
       const ok=S(P[0],P[1],P[2])>=st.boneThr; tot++; if(ok) inb++; if(si<=3){apexTot++; if(ok) apexIn++;} } }
   out.bone = inb/tot*100; out.apexBone=apexIn/apexTot*100;
@@ -858,7 +896,7 @@ function composeOverlay(p, g, w, h, f, half){
         const ex=A[0]+dx*t-x, ey=A[1]+dy*t-y, ez=A[2]+dz*t-z, d=Math.sqrt(ex*ex+ey*ey+ez*ez);
         if(d<NR){ blend(o,COL.nerve,d>NR-edge?0.95:0.38); M[o]=1; } } } }); }
   // implantes
-  st.implants.forEach(im=>{ const e=impEnds(im), cp=compGeo(im), A=e.apex, Bp=e.head, r=im.d/2, len=im.L;
+  st.implants.forEach(im=>{ const e=impEnds(im), cp=compGeo(im), A=e.apex, Bp=e.head, r=im.d/2, len=im.L, hs=isHS(im), Le=hs?len-HS_C:len;
     const ax=im.a, rf=Math.abs(ax[2])<0.9?[0,0,1]:[1,0,0], e1=norm(cross(ax,rf)), e2=cross(ax,e1);
     const top=add(Bp,mul(ax,cp.h)), R=Math.max(r, cp.h?compRad(im,0)+0.5:0, 3.5);
     const pts=[]; for(const B of [A,Bp,top]) for(const s1 of [-1,1]) for(const s2 of [-1,1]) pts.push(add(B,add(mul(e1,s1*R),mul(e2,s2*R))));
@@ -870,11 +908,12 @@ function composeOverlay(p, g, w, h, f, half){
       const t=l2?((x-A[0])*dx+(y-A[1])*dy+(z-A[2])*dz)/l2:0; const sAx=t*len; if(t<0||sAx>len+cv) continue;
       const ex=A[0]+dx*t-x, ey=A[1]+dy*t-y, ez=A[2]+dz*t-z, d=Math.sqrt(ex*ex+ey*ey+ez*ez); const o=V*w+U;
       if(sAx>len){ const rr=compRad(im,sAx-len); if(d<rr){ const ol=d>rr-edge*1.2; blend(o, ol?[140,105,25]:cc, ol?1:0.78); } continue; }
-      const ro=hxOuter(len,r,sAx); if(d>=ro) continue;
+      const ro=hxOuter(len,r,sAx,hs); if(d>=ro) continue;
       const vx=-ex, vy=-ey, vz=-ez; const th=Math.atan2(vx*e2[0]+vy*e2[1]+vz*e2[2], vx*e1[0]+vy*e1[1]+vz*e1[2]);
-      const rr=hxR(len,r,sAx,th); if(d>=rr) continue;
-      const dp=hxDepth(len,r,sAx), core=ro-dp, capE=Math.min(sAx,len-sAx);
+      const rr=hxR(len,r,sAx,th,hs); if(d>=rr) continue;
+      const dp=hxDepth(len,r,sAx,hs), core=ro-dp, capE=Math.min(sAx,len-sAx);
       const ol=d>rr-edge*1.2||capE<edge, thr=d>core;
+      if(hs&&sAx>Le){ blend(o, ol?oc:[236,168,204], ol?1:(sel?0.75:0.62)); continue; } // colar liso rosa (HS)
       blend(o, ol?oc:(thr?[228,232,238]:[196,203,212]), ol?1:(thr?0.85:(sel?0.62:0.5))); }
   });
 }
@@ -1166,7 +1205,7 @@ function renderSide(){
     $('#r-gam').value=st.gamma; $('#v-gam').textContent=st.gamma.toFixed(2).replace('.',','); }
   const list=$('#imp-list');
   if(!st.implants.length){ list.innerHTML=`<p class="empty">Nenhum implante. Use a ferramenta <b>Implante</b> e clique na crista, na transversal ou na panorâmica.</p>`; }
-  else list.innerHTML = st.implants.map((im,i)=>{ const ev=evaluate(im); return `<button type="button" class="imp ${im.id===st.sel?'sel':''}" data-imp="${im.id}"><span class="imp-n">${i+1}</span><span class="imp-t">Helix GM Ø ${dTxt(im.d)} × ${lTxt(im.L)} mm<small>${im.region?'região '+esc(im.region)+' · ':''}${impCode(im)} · ${im.surf}</small></span>${chip(ev.status,LABEL[ev.status])}</button>`; }).join('');
+  else list.innerHTML = st.implants.map((im,i)=>{ const ev=evaluate(im); return `<button type="button" class="imp ${im.id===st.sel?'sel':''}" data-imp="${im.id}"><span class="imp-n">${i+1}</span><span class="imp-t">${impName(im)} mm<small>${im.region?'região '+esc(im.region)+' · ':''}${impCode(im)} · ${im.surf}</small></span>${chip(ev.status,LABEL[ev.status])}</button>`; }).join('');
   $$('[data-imp]').forEach(b=>b.addEventListener('click',()=>{ st.sel=+b.dataset.imp; focusImplant(selImp()); }));
   const im=selImp(), ed=$('#imp-editor');
   if(!im){ ed.innerHTML=''; }
@@ -1175,18 +1214,22 @@ function renderSide(){
     const nerveS = ev.dNerve==null?'na':(ev.dNerve<2?'bad':(ev.dNerve<3?'warn':'ok'));
     const impS = ev.dImp==null?'na':(ev.dImp<1.5?'bad':(ev.dImp<3?'warn':'ok'));
     const boneS = ev.bone<60?'bad':(ev.bone<85?'warn':'ok');
-    const dOpts=DIAMS.map(d=>`<option value="${d}" ${d===im.d?'selected':''}>Ø ${dTxt(d)} mm</option>`).join('');
-    const lOpts=lensFor(im.d).map(l=>`<option value="${l}" ${l===im.L?'selected':''}>${lTxt(l)} mm</option>`).join('');
+    const hs=isHS(im), dOpts=diamsFor(im.line).map(d=>`<option value="${d}" ${d===im.d?'selected':''}>Ø ${dTxt(d)} mm</option>`).join('');
+    const lOpts=lensFor(im.d,im.line).map(l=>`<option value="${l}" ${l===nomL(im)?'selected':''}>${lTxt(l)} mm${hs?' + colar 1,8':''}</option>`).join('');
     ed.innerHTML = `<div class="editor" style="margin-top:10px">
-      <div class="row" style="justify-content:space-between"><strong style="font-family:var(--f-display)">Implante ${idx}<span style="display:block;font-family:var(--f-body);font-weight:400;font-size:11px;color:var(--muted)">Neodent Helix GM</span></strong>${chip(ev.status,LABEL[ev.status])}</div>
+      <div class="row" style="justify-content:space-between"><strong style="font-family:var(--f-display)">Implante ${idx}<span style="display:block;font-family:var(--f-body);font-weight:400;font-size:11px;color:var(--muted)">Neodent ${impLine(im)}</span></strong>${chip(ev.status,LABEL[ev.status])}</div>
       <div class="editor-grid">
+        <label class="field" for="sel-line" style="grid-column:1/-1">Linha<select id="sel-line"><option value="GM" ${!hs?'selected':''}>Helix GM</option><option value="HS" ${hs?'selected':''}>Helix Short (implante curto)</option></select></label>
         <label class="field" for="sel-d">Diâmetro<select id="sel-d">${dOpts}</select></label>
         <label class="field" for="sel-l">Comprimento<select id="sel-l">${lOpts}</select></label>
         <label class="field" for="sel-r" style="grid-column:1/-1">Região (dente)<input id="sel-r" type="text" placeholder="ex.: 36" value="${esc(im.region)}" style="background:var(--panel-2);border:1px solid var(--line);border-radius:6px;padding:5px 8px"></label>
-        <label class="field" for="sel-s">Superfície<select id="sel-s"><option ${im.surf==='Acqua'?'selected':''}>Acqua</option><option ${im.surf==='NeoPoros'?'selected':''}>NeoPoros</option></select></label>
+        <label class="field" for="sel-s">Superfície<select id="sel-s"><option ${im.surf==='Acqua'?'selected':''}>Acqua</option>${hs?'':`<option ${im.surf==='NeoPoros'?'selected':''}>NeoPoros</option>`}</select></label>
         <label class="field" for="sel-c">Componentes<select id="sel-c"><option value="none" ${im.comp.type==='none'?'selected':''}>Nenhum</option><option value="cover" ${im.comp.type==='cover'?'selected':''}>Parafuso de cobertura</option><option value="heal" ${im.comp.type==='heal'?'selected':''}>Cicatrizador</option></select></label>
-        ${im.comp.type==='cover'?`<label class="field" for="sel-ch" style="grid-column:1/-1">Altura<select id="sel-ch"><option value="0" ${im.comp.h===0?'selected':''}>0 mm · 117.021</option><option value="2" ${im.comp.h===2?'selected':''}>2 mm · 117.022</option></select></label>`:''}
-        ${im.comp.type==='heal'?`<label class="field" for="sel-cd">Ø do cicatrizador<select id="sel-cd">${HEAL_D.map(d=>`<option value="${d}" ${im.comp.d===d?'selected':''}>Ø ${hTxt(d)} mm</option>`).join('')}</select></label>
+        ${hs&&im.comp.type==='cover'?`<p class="empty" style="grid-column:1/-1;margin:0">Parafuso de cobertura HS · 117.025</p>`:''}
+        ${hs&&im.comp.type==='heal'?`<label class="field" for="sel-cm">Cicatrizador HS Ø 4,8<select id="sel-cm">${Object.keys(HEAL_HS).map(k=>`<option value="${k}" ${im.comp.model===k?'selected':''}>${k}</option>`).join('')}</select></label>
+        <label class="field" for="sel-ch">Transmucoso<select id="sel-ch">${HEAL_HS[im.comp.model].map(h=>`<option value="${h}" ${im.comp.h===h?'selected':''}>${hTxt(h)} mm</option>`).join('')}</select></label>`:''}
+        ${!hs&&im.comp.type==='cover'?`<label class="field" for="sel-ch" style="grid-column:1/-1">Altura<select id="sel-ch"><option value="0" ${im.comp.h===0?'selected':''}>0 mm · 117.021</option><option value="2" ${im.comp.h===2?'selected':''}>2 mm · 117.022</option></select></label>`:''}
+        ${!hs&&im.comp.type==='heal'?`<label class="field" for="sel-cd">Ø do cicatrizador<select id="sel-cd">${HEAL_D.map(d=>`<option value="${d}" ${im.comp.d===d?'selected':''}>Ø ${hTxt(d)} mm</option>`).join('')}</select></label>
         <label class="field" for="sel-ch">Transmucoso<select id="sel-ch">${healH(im.comp.d).map(h=>`<option value="${h}" ${im.comp.h===h?'selected':''}>${hTxt(h)} mm</option>`).join('')}</select></label>`:''}
       </div>
       <dl class="kv"><dt>Código do implante</dt><dd>${impCode(im)}</dd>${compCode(im)?`<dt>Código do componente</dt><dd>${compCode(im)}</dd>`:''}</dl>
@@ -1198,16 +1241,27 @@ function renderSide(){
       </div>
       <div class="row"><button class="btn small" id="btn-vert" type="button">Endireitar</button><button class="btn small" id="btn-flip" type="button" title="Gira 180° mantendo a plataforma no lugar">Inverter sentido</button><button class="btn small" id="btn-del" type="button">Excluir</button></div>
     </div>`;
-    $('#sel-d').addEventListener('change',e=>{ const head=impEnds(im).head; im.d=+e.target.value; const ls=lensFor(im.d); if(!ls.includes(im.L)){ im.L=ls.reduce((b,l)=>Math.abs(l-im.L)<Math.abs(b-im.L)?l:b, ls[0]); im.c=sub(head,mul(im.a,im.L/2)); } invalidate();});
+    const near=(arr,x)=>arr.reduce((b,v)=>Math.abs(v-x)<Math.abs(b-x)?v:b, arr[0]);
+    const setLen=(n)=>{ const head=impEnds(im).head; if(isHS(im)){ im.Ln=n; im.L=n+HS_C; } else im.L=n; im.c=sub(head,mul(im.a,im.L/2)); };
+    $('#sel-line').addEventListener('change',e=>{ const to=e.target.value; if(to===im.line) return; const head=impEnds(im).head, n0=nomL(im);
+      // mantém o topo da parte com rosca no mesmo lugar: no HS a plataforma sobe 1,8 mm (colar)
+      const junc = isHS(im) ? sub(head,mul(im.a,HS_C)) : head;
+      im.line=to; st.implLine=to; $('#new-line').value=to; im.d=near(diamsFor(to),im.d); const ls=lensFor(im.d,to), n=near(ls,n0);
+      if(to==='HS'){ im.Ln=n; im.L=n+HS_C; im.surf='Acqua'; const plat=add(junc,mul(im.a,HS_C)); im.c=sub(plat,mul(im.a,im.L/2)); }
+      else { delete im.Ln; im.L=n; im.c=sub(junc,mul(im.a,im.L/2)); }
+      im.comp={type:'none'}; invalidate(); });
+    $('#sel-d').addEventListener('change',e=>{ im.d=+e.target.value; const ls=lensFor(im.d,im.line); if(!ls.includes(nomL(im))) setLen(near(ls,nomL(im))); invalidate();});
     $('#sel-s').addEventListener('change',e=>{im.surf=e.target.value; invalidate({three:false});});
     $('#sel-r').addEventListener('change',e=>{im.region=e.target.value.trim(); invalidate({three:false,img:false});});
     $('#sel-c').addEventListener('change',e=>{ const t=e.target.value;
       if(t==='cover') im.comp={type:'cover',h:0};
+      else if(t==='heal'&&isHS(im)) im.comp={type:'heal',d:4.8,model:'106.273',h:2.5};
       else if(t==='heal'){ const d=HEAL_D.reduce((b,x)=>Math.abs(x-im.d)<Math.abs(b-im.d)?x:b,HEAL_D[0]); im.comp={type:'heal',d,h:2.5}; }
       else im.comp={type:'none'}; invalidate(); });
     const sch=$('#sel-ch'); if(sch) sch.addEventListener('change',e=>{ im.comp.h=+e.target.value; invalidate(); });
+    const scm=$('#sel-cm'); if(scm) scm.addEventListener('change',e=>{ im.comp.model=e.target.value; const hs_=HEAL_HS[im.comp.model]; if(!hs_.includes(im.comp.h)) im.comp.h=near(hs_,im.comp.h); invalidate(); });
     const scd=$('#sel-cd'); if(scd) scd.addEventListener('change',e=>{ im.comp.d=+e.target.value; const hs=healH(im.comp.d); if(!hs.includes(im.comp.h)) im.comp.h=hs.reduce((b,x)=>Math.abs(x-im.comp.h)<Math.abs(b-im.comp.h)?x:b,hs[0]); invalidate(); });
-    $('#sel-l').addEventListener('change',e=>{ const head=impEnds(im).head; im.L=+e.target.value; im.c=sub(head,mul(im.a,im.L/2)); invalidate();});
+    $('#sel-l').addEventListener('change',e=>{ setLen(+e.target.value); invalidate();});
     $('#btn-vert').addEventListener('click',()=>{ const head=impEnds(im).head; im.a=[0,0,im.a[2]<0?-1:1]; im.c=sub(head,mul(im.a,im.L/2)); centerOn(im); });
     $('#btn-flip').addEventListener('click',()=>{ const head=impEnds(im).head; im.a=mul(im.a,-1); im.c=sub(head,mul(im.a,im.L/2)); centerOn(im); });
     $('#btn-del').addEventListener('click',()=>{ st.implants=st.implants.filter(x=>x!==im); st.sel=null; invalidate(); });
@@ -1399,19 +1453,21 @@ function build3D(){
 }
 function applyOpacity(){ if(!R3||!R3.bone) return; const m=R3.bone.material, o=st.boneOpacity; m.opacity=o; m.transparent=o<0.99; m.depthWrite=o>=0.99; m.needsUpdate=true; }
 const HXCACHE=new Map();
-function helixGeo(d,L){ const key=d+'|'+L; if(HXCACHE.has(key)) return HXCACHE.get(key);
+function helixGeo(d,L,hs){ const key=d+'|'+L+'|'+(hs?1:0); if(HXCACHE.has(key)) return HXCACHE.get(key);
   const R=d/2, ns=Math.ceil(L/0.05), nt=72, pos=[], idx=[];
   const rows=[]; // cada linha: {y, rf(th)}
   rows.push({y:-L/2, rf:()=>0});
-  for(let i=1;i<=ns;i++){ const sAx=i/ns*L; rows.push({y:sAx-L/2, rf:th=>hxR(L,R,sAx,th)}); }
-  const rc=R*0.985; rows.push({y:L/2, rf:()=>rc*0.97}); rows.push({y:L/2, rf:()=>1.05}); rows.push({y:L/2-0.9, rf:()=>1.05}); rows.push({y:L/2-0.9, rf:()=>0});
-  rows.forEach(rw=>{ for(let j=0;j<=nt;j++){ const th=j/nt*Math.PI*2, r=rw.rf(th); pos.push(r*Math.cos(th), rw.y, r*Math.sin(th)); } });
+  for(let i=1;i<=ns;i++){ const sAx=i/ns*L; rows.push({y:sAx-L/2, rf:th=>hxR(L,R,sAx,th,hs), pink:hs&&sAx>L-HS_C+0.02}); }
+  if(hs){ rows.push({y:L/2, rf:()=>HS_PLAT*0.97, pink:true}); rows.push({y:L/2, rf:()=>1.35, pink:true}); rows.push({y:L/2-1.2, rf:()=>1.0}); rows.push({y:L/2-1.2, rf:()=>0}); } // conexão cônica HS
+  else { const rc=R*0.985; rows.push({y:L/2, rf:()=>rc*0.97}); rows.push({y:L/2, rf:()=>1.05}); rows.push({y:L/2-0.9, rf:()=>1.05}); rows.push({y:L/2-0.9, rf:()=>0}); }
+  const col=[];
+  rows.forEach(rw=>{ const c=rw.pink?[0.93,0.62,0.76]:[0.80,0.83,0.86]; for(let j=0;j<=nt;j++){ const th=j/nt*Math.PI*2, r=rw.rf(th); pos.push(r*Math.cos(th), rw.y, r*Math.sin(th)); col.push(c[0],c[1],c[2]); } });
   for(let i=0;i<rows.length-1;i++) for(let j=0;j<nt;j++){ const a=i*(nt+1)+j, b=a+1, c=a+nt+1, e=c+1; idx.push(a,c,b, b,c,e); }
-  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3)); g.setIndex(idx); g.computeVertexNormals(); g.userData.cached=true;
+  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3)); g.setAttribute('color',new THREE.Float32BufferAttribute(col,3)); g.setIndex(idx); g.computeVertexNormals(); g.userData.cached=true;
   HXCACHE.set(key,g); return g; }
 const ENVCACHE=new Map();
-function envelopeGeo(d,L){ const key=d+'|'+L; if(ENVCACHE.has(key)) return ENVCACHE.get(key); const R=d/2, pts=[new THREE.Vector2(0.001,-L/2)];
-  for(let i=1;i<=40;i++){ const sAx=i/40*L; pts.push(new THREE.Vector2(hxOuter(L,R,sAx)*0.96, sAx-L/2)); } pts.push(new THREE.Vector2(0.001,L/2));
+function envelopeGeo(d,L,hs){ const key=d+'|'+L+'|'+(hs?1:0); if(ENVCACHE.has(key)) return ENVCACHE.get(key); const R=d/2, pts=[new THREE.Vector2(0.001,-L/2)];
+  for(let i=1;i<=40;i++){ const sAx=i/40*L; pts.push(new THREE.Vector2(hxOuter(L,R,sAx,hs)*0.96, sAx-L/2)); } pts.push(new THREE.Vector2(0.001,L/2));
   const g=new THREE.LatheGeometry(pts,40); g.userData.cached=true; ENVCACHE.set(key,g); return g; }
 function compMesh(im){ const c=im.comp||{type:'none'}; if(c.type==='none') return null; const g=compGeo(im), h=g.h, L=im.L;
   const prof=[new THREE.Vector2(0.001,0)]; const N=18; for(let i=0;i<=N;i++){ const z=i/N*h; prof.push(new THREE.Vector2(Math.max(0.05,compRad(im,Math.min(z,h-1e-4))), z)); }
@@ -1424,11 +1480,11 @@ function sync3D(){
   if(!R3) return;
   const G=R3.groupImp; while(G.children.length){ const c=G.children.pop(); c.traverse(o=>{ if(o.geometry&&!o.geometry.userData.cached) o.geometry.dispose(); if(o.material) o.material.dispose(); }); }
   st.implants.forEach(im=>{ const ev=evaluate(im); const col= ev.status==='bad'?0xFF5A5F:(im.id===st.sel?0xFF8CBE:0xEC4B8E);
-    const geo=helixGeo(im.d,im.L);
-    const mat=new THREE.MeshStandardMaterial({color:0xCDD3DB, metalness:0.55, roughness:0.3, emissive: ev.status==='bad'?0x5a0a0e:(im.id===st.sel?0x3a0d22:0x000000)});
+    const geo=helixGeo(im.d,im.L,isHS(im));
+    const mat=new THREE.MeshStandardMaterial({color:0xFFFFFF, vertexColors:true, metalness:0.55, roughness:0.3, emissive: ev.status==='bad'?0x5a0a0e:(im.id===st.sel?0x3a0d22:0x000000)});
     const grp=new THREE.Group(); grp.add(new THREE.Mesh(geo,mat));
     const cg=compMesh(im); if(cg) grp.add(cg);
-    if(st.boneOpacity>=0.99){ const ghost=new THREE.Mesh(envelopeGeo(im.d,im.L), new THREE.MeshBasicMaterial({color:col, transparent:true, opacity:0.45, depthWrite:false, depthFunc:THREE.GreaterDepth}));
+    if(st.boneOpacity>=0.99){ const ghost=new THREE.Mesh(envelopeGeo(im.d,im.L,isHS(im)), new THREE.MeshBasicMaterial({color:col, transparent:true, opacity:0.45, depthWrite:false, depthFunc:THREE.GreaterDepth}));
       ghost.renderOrder=2; grp.add(ghost); }
     if(st.showAxis){ const ax=new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.18,AXIS_LEN+im.L+3,8), new THREE.MeshBasicMaterial({color:0x22D3EE})); ax.position.y=(AXIS_LEN-3)/2; grp.add(ax); }
     grp.position.set(im.c[0],im.c[1],im.c[2]); grp.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), new THREE.Vector3(im.a[0],im.a[1],im.a[2])); G.add(grp); });
@@ -1598,11 +1654,11 @@ function openReport(){
   if(!st.implants.length){ flash('Posicione ao menos um implante para gerar o relatório.'); return; }
   repData=collectReport(); const d=repData;
   const td=(v,s)=>`<td${s?` class="st-${s}"`:''}>${v}</td>`;
-  const tableRows=d.rows.map(r=>`<tr>${td(r.n)}${td(esc(r.im.region||'—'))}${td('Ø '+dTxt(r.im.d)+' × '+lTxt(r.im.L))}${td(r.im.surf)}${td(r.code)}${td(compTxt(r.im))}${td(fmt(r.ev.angle,0)+'°')}${td(r.ev.dNerve==null?'sem canal':fmt(r.ev.dNerve)+' mm',r.nS)}${td(r.ev.dImp==null?'—':fmt(r.ev.dImp)+' mm',r.iS)}${td(fmt(r.ev.bone,0)+'%',r.bS)}${td(stText(r.ev.status),r.ev.status)}</tr>`).join('');
+  const tableRows=d.rows.map(r=>`<tr>${td(r.n)}${td(esc(r.im.region||'—'))}${td((isHS(r.im)?'Short ':'GM ')+'Ø '+dTxt(r.im.d)+' × '+lTxt(nomL(r.im)))}${td(r.im.surf)}${td(r.code)}${td(compTxt(r.im))}${td(fmt(r.ev.angle,0)+'°')}${td(r.ev.dNerve==null?'sem canal':fmt(r.ev.dNerve)+' mm',r.nS)}${td(r.ev.dImp==null?'—':fmt(r.ev.dImp)+' mm',r.iS)}${td(fmt(r.ev.bone,0)+'%',r.bS)}${td(stText(r.ev.status),r.ev.status)}</tr>`).join('');
   const fig=(sh,cap)=>sh?`<figure><img src="${sh.url}" alt="${cap} do implante"><figcaption>${cap}</figcaption></figure>`:`<figure><div class="noimg"></div><figcaption>${cap}</figcaption></figure>`;
   const cards=d.rows.map(r=>`<div class="rep-imp"><h4>Implante ${r.n}${r.im.region?' · região '+esc(r.im.region):''} <span class="st-${r.ev.status}" style="float:right">${stText(r.ev.status)}</span></h4>
     <div class="rep-shots">${fig(r.shots.ax,'Axial')}${fig(r.shots.tg,'Tangencial')}${fig(r.shots.tr,'Transversal')}</div>
-    <dl><dt>Implante</dt><dd>Helix GM Ø ${dTxt(r.im.d)} × ${lTxt(r.im.L)} mm</dd><dt>Superfície</dt><dd>${r.im.surf}</dd><dt>Código</dt><dd>${r.code}</dd><dt>Componente</dt><dd>${compTxt(r.im)}</dd>
+    <dl><dt>Implante</dt><dd>${impName(r.im)} mm${isHS(r.im)?' + colar 1,8':''}</dd><dt>Superfície</dt><dd>${r.im.surf}</dd><dt>Código</dt><dd>${r.code}</dd><dt>Componente</dt><dd>${compTxt(r.im)}</dd>
     <dt>Inclinação</dt><dd>${fmt(r.ev.angle,0)}°</dd><dt>Distância ao canal</dt><dd class="${r.nS?'st-'+r.nS:''}">${r.ev.dNerve==null?'sem canal':fmt(r.ev.dNerve)+' mm'}</dd>
     <dt>Implante vizinho</dt><dd class="${r.iS?'st-'+r.iS:''}">${r.ev.dImp==null?'—':fmt(r.ev.dImp)+' mm'}</dd><dt>Superfície em osso</dt><dd class="st-${r.bS}">${fmt(r.ev.bone,0)}%</dd></dl></div>`).join('');
   $('#paper').innerHTML=`
@@ -1614,7 +1670,7 @@ function openReport(){
       <label>Arcada<span class="ro">${d.arcada}</span></label>
       <label>Voxel<span class="ro">${d.voxel}</span></label>
     </div></section>
-    <section><h3>Implantes selecionados</h3><div class="rep-table-wrap"><table class="rep-table"><tr><th>Nº</th><th>Região</th><th>Neodent Helix GM (mm)</th><th>Superfície</th><th>Código</th><th>Componente</th><th>Incl.</th><th>Canal</th><th>Vizinho</th><th>Osso</th><th>Avaliação</th></tr>${tableRows}</table></div></section>
+    <section><h3>Implantes selecionados</h3><div class="rep-table-wrap"><table class="rep-table"><tr><th>Nº</th><th>Região</th><th>Neodent Helix (mm)</th><th>Superfície</th><th>Código</th><th>Componente</th><th>Incl.</th><th>Canal</th><th>Vizinho</th><th>Osso</th><th>Avaliação</th></tr>${tableRows}</table></div></section>
     <section><h3>Cortes de cada implante</h3><div class="rep-imps">${cards}</div></section>
     <section><h3>Observações</h3><textarea id="rep-notes" rows="4" style="width:100%;box-sizing:border-box" placeholder="Justificativa da escolha, enxerto, componentes protéticos…">${esc(rep.notes)}</textarea></section>
     <p class="rep-disc">Critérios: distância de 2 mm ou mais da borda do canal mandibular (${d.nerves} canal(is) marcado(s), raio ${fmt(st.nerveR)} mm); 3 mm ou mais entre implantes; 85% ou mais da superfície do implante acima do limiar ósseo (${d.thr}). Implantes da biblioteca Neodent Helix GM. Simulação para ensino e referência: nenhuma medida ou avaliação é absoluta e todas devem ser confirmadas pelo profissional no exame original e no software de planejamento. Não gera guia cirúrgica. Os resultados dependem da calibração do exame e da marcação do canal.</p>`;
@@ -1627,6 +1683,7 @@ $('#btn-report').addEventListener('click',openReport);
 function startNewImplant(){ if(!st.vol){ flash('Abra uma tomografia primeiro.'); return; } st.sel=null; st.frozen=null; if(st.mode!=='plan') setMode('plan'); if(st.bottom!=='pano') setBottom('pano'); setTool('implant');
   flash(st.curve.S ? 'Na panorâmica, clique na região do novo implante para levar a transversal até lá. Depois clique na crista da transversal.' : 'Desenhe a curva da arcada no axial primeiro (ferramenta Curva).'); invalidate(); }
 $('#btn-new-imp').addEventListener('click',startNewImplant);
+$('#new-line').addEventListener('change',e=>{ st.implLine=e.target.value; });
 $('#rep-close').addEventListener('click',()=>{ $('#report').hidden=true; });
 
 let downloadsNS=null;
@@ -1651,17 +1708,17 @@ async function buildPDF(){
   y+=10*Math.ceil(info.length/2)+2;
   const section=t=>{ need(10); doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(...mag); doc.text(t.toUpperCase(),M,y); doc.setFont('helvetica','normal'); y+=4; };
   section('Implantes selecionados');
-  const cols=[['Nº',7],['Região',11],['Helix GM',23],['Superf.',15],['Código',15],['Componente',38],['Incl.',10],['Canal',16],['Vizinho',15],['Osso',11],['Aval.',19]];
+  const cols=[['Nº',7],['Região',11],['Helix',23],['Superf.',15],['Código',15],['Componente',38],['Incl.',10],['Canal',16],['Vizinho',15],['Osso',11],['Aval.',19]];
   const rowH=6.5; need(rowH*2);
   doc.setFontSize(7); doc.setTextColor(...grey); let x=M; cols.forEach(c=>{ doc.text(c[0].toUpperCase(),x+1,y+3.5); x+=c[1]; }); y+=5; doc.setDrawColor(...navy); doc.setLineWidth(0.5); doc.line(M,y,PW-M,y); y+=1;
   doc.setFontSize(8.5);
-  d.rows.forEach(r=>{ need(rowH); const cells=[[String(r.n)],[r.im.region||'—'],['Ø '+dTxt(r.im.d)+' × '+lTxt(r.im.L)],[r.im.surf],[r.code],[compTxt(r.im),null,7.2],[fmt(r.ev.angle,0)+'°'],[r.ev.dNerve==null?'sem canal':fmt(r.ev.dNerve)+' mm',r.nS],[r.ev.dImp==null?'—':fmt(r.ev.dImp)+' mm',r.iS],[fmt(r.ev.bone,0)+'%',r.bS],[stText(r.ev.status),r.ev.status]];
+  d.rows.forEach(r=>{ need(rowH); const cells=[[String(r.n)],[r.im.region||'—'],[(isHS(r.im)?'Short ':'GM ')+'Ø '+dTxt(r.im.d)+' × '+lTxt(nomL(r.im))],[r.im.surf],[r.code],[compTxt(r.im),null,7.2],[fmt(r.ev.angle,0)+'°'],[r.ev.dNerve==null?'sem canal':fmt(r.ev.dNerve)+' mm',r.nS],[r.ev.dImp==null?'—':fmt(r.ev.dImp)+' mm',r.iS],[fmt(r.ev.bone,0)+'%',r.bS],[stText(r.ev.status),r.ev.status]];
     let xx=M; cells.forEach((c,i)=>{ doc.setTextColor(...(c[1]?stCol[c[1]]:ink)); if(c[1]) doc.setFont('helvetica','bold'); if(c[2]) doc.setFontSize(c[2]); doc.text(String(c[0]),xx+1,y+4.3); if(c[2]) doc.setFontSize(8.5); doc.setFont('helvetica','normal'); xx+=cols[i][1]; });
     y+=rowH; doc.setDrawColor(221,227,234); doc.setLineWidth(0.2); doc.line(M,y,PW-M,y); });
   y+=8;
   need(125); section('Cortes de cada implante');
   d.rows.forEach(r=>{ const bw=PW-2*M, gap=3, iw=(bw-8-2*gap)/3, ih=Math.max(...['ax','tg','tr'].map(k=>r.shots[k]?iw*r.shots[k].h/r.shots[k].w:iw*1.25));
-    const kv=[['Helix GM','Ø '+dTxt(r.im.d)+' × '+lTxt(r.im.L)+' mm'],['Superfície',r.im.surf],['Código',r.code],['Componente',compParts(r.im)[0]],['Medida comp.',compParts(r.im)[1]],['Cód. comp.',compParts(r.im)[2]],['Inclinação',fmt(r.ev.angle,0)+'°'],['Canal',r.ev.dNerve==null?'sem canal':fmt(r.ev.dNerve)+' mm',r.nS],['Vizinho',r.ev.dImp==null?'—':fmt(r.ev.dImp)+' mm',r.iS],['Osso',fmt(r.ev.bone,0)+'%',r.bS]];
+    const kv=[[impLine(r.im),'Ø '+dTxt(r.im.d)+' × '+lTxt(nomL(r.im))+' mm'+(isHS(r.im)?' + colar 1,8':'')],['Superfície',r.im.surf],['Código',r.code],['Componente',compParts(r.im)[0]],['Medida comp.',compParts(r.im)[1]],['Cód. comp.',compParts(r.im)[2]],['Inclinação',fmt(r.ev.angle,0)+'°'],['Canal',r.ev.dNerve==null?'sem canal':fmt(r.ev.dNerve)+' mm',r.nS],['Vizinho',r.ev.dImp==null?'—':fmt(r.ev.dImp)+' mm',r.iS],['Osso',fmt(r.ev.bone,0)+'%',r.bS]];
     const rowsKV=Math.ceil(kv.length/2), bh=9+ih+7+rowsKV*4.8+3;
     need(bh+4); const x0=M, top=y;
     doc.setDrawColor(221,227,234); doc.setLineWidth(0.3); doc.roundedRect(x0,top,bw,bh,2,2);
@@ -2158,9 +2215,9 @@ function ptUI(){ $$('[data-pt]').forEach(b=>b.classList.toggle('on',b.dataset.pt
   $$('[data-ptq]').forEach(b=>b.classList.toggle('on',b.dataset.ptq===PT.quality)); }
 function openProtus(){ if(!st.vol){ flash('Abra uma tomografia primeiro.'); return; } if(!ptInit()){ flash('Este navegador não abriu o 3D (WebGL).'); return; }
   $('#protus').hidden=false; const LOW=(navigator.hardwareConcurrency||8)<=4||(navigator.deviceMemory||8)<=4; PT.prevDim=LOW?160:230;
-  if(PT.vol!==st.vol){ PT.vol=st.vol; PT.ops=[]; PT.thr=Math.round(st.boneThr); PT.orb=null; PT.seg=null; PT.segKeep={1:true,2:true}; PT.occZ=(typeof PR!=='undefined'&&PR.occZ!=null)?clamp(PR.occZ,0,st.vol.Z):st.vol.Z/2; PT.showPlane=true; }
+  if(PT.vol!==st.vol){ PT.vol=st.vol; PT.ops=[]; PT.thr=Math.round(st.boneThr); PT.auto=PT.thr; PT.orb=null; PT.seg=null; PT.segKeep={1:true,2:true}; PT.occZ=(typeof PR!=='undefined'&&PR.occZ!=null)?clamp(PR.occZ,0,st.vol.Z):st.vol.Z/2; PT.showPlane=true; }
   const ro_=$('#pt-occ'); ro_.min=0; ro_.max=st.vol.Z.toFixed(1); ro_.step=0.5; ro_.value=PT.occZ; ptSegUI();
-  const r=$('#pt-thr'); r.min=Math.round(st.vol.p40); r.max=Math.round(st.vol.vmax); r.value=PT.thr; $('#pt-vthr').textContent=PT.thr;
+  ptThrRange();
   ptUI(); requestAnimationFrame(()=>ptRebuild(!PT.orb)); }
 // ---- STL binário + zip (o download do artefato aceita .zip)
 function stlBinary(geo){ const P=geo.attributes.position.array, I=geo.index.array, n=I.length/3, buf=new ArrayBuffer(84+n*50), dv=new DataView(buf);
@@ -2190,8 +2247,15 @@ $$('[data-pt]').forEach(b=>b.addEventListener('click',()=>{ PT.tool=b.dataset.pt
 $$('[data-ptq]').forEach(b=>b.addEventListener('click',()=>{ PT.quality=b.dataset.ptq; ptUI(); }));
 $('#pt-undo').addEventListener('click',()=>{ if(PT.busy||!PT.ops.length) return; PT.ops.pop(); ptRebuild(); });
 $('#pt-reset').addEventListener('click',()=>{ if(PT.busy) return; PT.ops=[]; ptRebuild(); });
+// faixa da barra: em volta do limiar automático (−400 a +900), em passos de 5 — movimento mais fino que a faixa inteira do exame
+function ptThrRange(){ const v=st.vol, A=PT.auto!=null?PT.auto:Math.round(st.boneThr), r=$('#pt-thr');
+  const lo=Math.max(Math.round(v.vmin), A-400), hi=Math.min(Math.round(v.vmax), A+900); r.min=Math.min(lo,PT.thr); r.max=Math.max(hi,PT.thr); r.value=PT.thr; $('#pt-vthr').textContent=PT.thr; }
+function ptSetThr(t){ t=Math.round(t/5)*5; if(t===PT.thr) return; PT.thr=t; ptThrRange(); if(PT.seg){ PT.seg=null; ptSegUI(); flash('Limiar mudou: separe maxila e mandíbula de novo.'); } ptRebuild(); }
+$('#pt-thr-m').addEventListener('click',()=>{ if(!PT.busy) ptSetThr(PT.thr-10); });
+$('#pt-thr-p').addEventListener('click',()=>{ if(!PT.busy) ptSetThr(PT.thr+10); });
+$('#pt-thr-a').addEventListener('click',()=>{ if(!PT.busy&&PT.auto!=null) ptSetThr(PT.auto); });
 $('#pt-thr').addEventListener('input',e=>{ $('#pt-vthr').textContent=e.target.value; });
-$('#pt-thr').addEventListener('change',e=>{ PT.thr=+e.target.value; if(PT.seg){ PT.seg=null; ptSegUI(); flash('Limiar mudou: separe maxila e mandíbula de novo.'); } ptRebuild(); });
+$('#pt-thr').addEventListener('change',e=>{ ptSetThr(+e.target.value); });
 $('#pt-occ').addEventListener('input',e=>{ PT.occZ=+e.target.value; PT.showPlane=true; ptSegUI(); ptPlane(); ptRender(); });
 $('#pt-seg').addEventListener('click',ptSegment);
 $$('[data-sk]').forEach(b=>b.addEventListener('click',()=>{ const k=b.dataset.sk; PT.segKeep[k]=!PT.segKeep[k]; if(!PT.segKeep[1]&&!PT.segKeep[2]) PT.segKeep[k]=true; ptSegUI(); ptRebuild(); }));
