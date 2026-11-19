@@ -627,8 +627,9 @@ function makePhantom(){
 function buildCurve(){
   const c=st.curve, P=c.pts, vol=st.vol;
   if(!vol||P.length<2){c.S=null;c.len=0;return;}
+  // ordena só uma cópia (direita→esquerda da tela); a lista de pontos clicados não é alterada,
+  // senão o próximo clique entraria na ponta errada e a curva cruzaria sobre si mesma
   const pts = (P[0][0]>P[P.length-1][0]) ? P.slice().reverse() : P;
-  if(pts!==P) c.pts=pts;
   const dense=[]; const n=pts.length;
   for(let i=0;i<n-1;i++){ const p0=pts[Math.max(0,i-1)], p1=pts[i], p2=pts[i+1], p3=pts[Math.min(n-1,i+2)];
     for(let s=0;s<24;s++){ const t=s/24, t2=t*t, t3=t2*t;
